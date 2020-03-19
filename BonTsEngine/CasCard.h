@@ -55,6 +55,7 @@ public:
 		BYTE CardManufacturerID;		// Manufacturer identifier
 		BYTE CardVersion;				// Version
 		WORD CheckCode;					// Check code
+		WORD PairingMJD;				// Pairning deadline
 	};
 
 	CCasCard();
@@ -89,6 +90,7 @@ public:
 protected:
 	const bool OpenAndInitialize(LPCTSTR pszReader);
 	const bool InitialSetting(void);
+	void ExtractMJD(int *yy, int *mm, int *dd, int mjd) const;
 
 	CCardReader *m_pCardReader;
 

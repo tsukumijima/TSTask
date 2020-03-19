@@ -1221,7 +1221,11 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 	if (PayloadSize < MIN_ECM_DATA_SIZE || PayloadSize > MAX_ECM_DATA_SIZE)
 		return false;
 
+// for SPHD s 用変更
+/*
 	// ECMが変わったらキー取得が成功するまで無効にする
+	// (最初ECM本体のKsが変化したか比較するようにしたが、
+	//  ECM本体とECM応答のKsの変化は一致するわけではない)
 	m_Multi2Lock.Lock();
 	if (m_LastChangedKey == 1) {
 		m_bEvenKeyValid = false;
@@ -1229,6 +1233,7 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 		m_bOddKeyValid = false;
 	}
 	m_Multi2Lock.Unlock();
+*/
 
 	// 前のECM処理が終わるまで待つ
 	if (!m_EcmProcessEvent.IsSignaled()) {
@@ -1385,9 +1390,10 @@ const bool CEmmProcessor::OnTableUpdate(const CPsiSection *pCurSection)
 		return true;
 
 	WORD Pos = 0;
-	while (DataSize >= Pos + 17) {
-		const WORD EmmSize = (WORD)pHexData[Pos + 6] + 7;
-		if (EmmSize < 17 || EmmSize > MAX_EMM_DATA_SIZE || DataSize < Pos + EmmSize)
+
+	while (DataSize > Pos + 6) {
+		const WORD EmmSize = DataSize;
+		if (EmmSize < 6 || EmmSize > MAX_EMM_DATA_SIZE || DataSize < Pos + EmmSize)
 			break;
 
 		if (::memcmp(pCardID, &pHexData[Pos], 6) == 0) {

@@ -183,7 +183,7 @@ const bool CCasCard::InitialSetting(void)
 	BYTE RecvData[RECEIVE_BUFFER_SIZE];
 
 	// 初期設定条件コマンド送信
-	static const BYTE InitSettingCmd[] = {0x90U, 0x30U, 0x00U, 0x00U, 0x00U};
+	static const BYTE InitSettingCmd[] = {0x80U, 0x5EU, 0x00U, 0x00U, 0x00U};	// INITIAL_SETTING_CONDITIONS_CMD {CLA, INS, P1, P2, P3}
 	::ZeroMemory(RecvData, sizeof(RecvData));
 	dwRecvSize = sizeof(RecvData);
 	TRACE(TEXT("Send \"Initial Setting Conditions Command\"\n"));
@@ -192,48 +192,49 @@ const bool CCasCard::InitialSetting(void)
 		return false;
 	}
 
-	if (dwRecvSize < 57UL) {
+	if (dwRecvSize < 46UL) {
 		SetError(ERR_TRANSMITERROR, TEXT("受信データのサイズが不正です。"));
 		return false;
 	}
 
-	// レスポンス解析
-	m_CasCardInfo.CASystemID = ((WORD)RecvData[6] << 8) | (WORD)RecvData[7];
-	::CopyMemory(m_CasCardInfo.CardID, &RecvData[8], 6);		// +8	Card ID
-	m_CasCardInfo.CardType = RecvData[14];
-	m_CasCardInfo.MessagePartitionLength = RecvData[15];
-	::CopyMemory(m_CasCardInfo.SystemKey, &RecvData[16], 32);	// +16	Descrambling system key
-	::CopyMemory(m_CasCardInfo.InitialCbc, &RecvData[48], 8);	// +48	Descrambler CBC initial value
+	m_CasCardInfo.CASystemID = ((WORD)RecvData[0] << 8) | (WORD)RecvData[1];	// +0	CA System ID
+	::CopyMemory(m_CasCardInfo.CardID, &RecvData[2], 6UL);					// +2	Card ID
+	::CopyMemory(m_CasCardInfo.SystemKey, &RecvData[8], 32UL);					// +8	Descrambling system key
+	::CopyMemory(m_CasCardInfo.InitialCbc, &RecvData[8], 8UL);					// +8	Descrambler CBC initial value
 
-	if (::memcmp(m_CasCardInfo.CardID, "\0\0\0\0\0", 6) == 0) {
-		SetError(ERR_TRANSMITERROR, TEXT("カードIDが不正です。"));
-		return false;
-	}
-
-	// カードID情報取得コマンド送信
-	static const BYTE CardIDInfoCmd[] = {0x90, 0x32, 0x00, 0x00, 0x00};
+	// ペアリング期限コマンド送信
+	static const BYTE PairingDeadlineCmd1[] = { 0x80, 0x40, 0xa8, 0x00, 0x00 };
 	::ZeroMemory(RecvData, sizeof(RecvData));
 	dwRecvSize = sizeof(RecvData);
-	TRACE(TEXT("Send \"Card ID Information Acquire Command\"\n"));
-	if (!m_pCardReader->Transmit(CardIDInfoCmd, sizeof(CardIDInfoCmd), RecvData, &dwRecvSize)) {
+	TRACE(TEXT("Send \"Pairing Card Command\"\n"));
+	if (!m_pCardReader->Transmit(PairingDeadlineCmd1, sizeof(PairingDeadlineCmd1), RecvData, &dwRecvSize)) {
 		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
-		return false;
+		goto END;
 	}
 
-	if (dwRecvSize < 19) {
+	if (dwRecvSize < 6) {
 		SetError(ERR_TRANSMITERROR, TEXT("受信データのサイズが不正です。"));
-		return false;
+		goto END;
+	}
+	
+	static const BYTE PairingDeadlineCmd2[] = { 0x80, 0x42, 0xa8, 0x00, 0x00 };
+	::ZeroMemory(RecvData, sizeof(RecvData));
+	dwRecvSize = sizeof(RecvData);
+	if (!m_pCardReader->Transmit(PairingDeadlineCmd2, sizeof(PairingDeadlineCmd2), RecvData, &dwRecvSize)) {
+		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
+		goto END;
 	}
 
-	m_CasCardInfo.CardManufacturerID = RecvData[7];
-	m_CasCardInfo.CardVersion = RecvData[8];
-	m_CasCardInfo.CheckCode = ((WORD)RecvData[15] << 8) | (WORD)RecvData[16];
-
-	if (::memcmp(&RecvData[9], "\0\0\0\0\0", 6) == 0) {
-		SetError(ERR_TRANSMITERROR, TEXT("カードIDが不正です。"));
-		return false;
+	if (dwRecvSize < 17) {
+		SetError(ERR_TRANSMITERROR, TEXT("受信データのサイズが不正です。"));
+		goto END;
 	}
 
+	m_CasCardInfo.PairingMJD = ((WORD)RecvData[8] << 8) | (WORD)RecvData[9];
+
+
+// for SPHD s 用変更
+END:
 	// ECMステータス初期化
 	::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
 
@@ -360,22 +361,70 @@ const int CCasCard::FormatCardID(LPTSTR pszText, int MaxLength) const
 		return 0;
 
 	ULONGLONG ID;
+	int yyyy, mm, dd, mjd;
 
-	ID = ((((ULONGLONG)(m_CasCardInfo.CardID[0] & 0x1F) << 40) |
-		   ((ULONGLONG)m_CasCardInfo.CardID[1] << 32) |
-		   ((ULONGLONG)m_CasCardInfo.CardID[2] << 24) |
-		   ((ULONGLONG)m_CasCardInfo.CardID[3] << 16) |
-		   ((ULONGLONG)m_CasCardInfo.CardID[4] << 8) |
-		    (ULONGLONG)m_CasCardInfo.CardID[5]) * 100000ULL) +
-		 (ULONGLONG)m_CasCardInfo.CheckCode;
+	ID = ((ULONGLONG)m_CasCardInfo.CardID[0] << 40) |
+		  ((ULONGLONG)m_CasCardInfo.CardID[1] << 32) |
+		  ((ULONGLONG)m_CasCardInfo.CardID[2] << 24) |
+		  ((ULONGLONG)m_CasCardInfo.CardID[3] << 16) |
+		  ((ULONGLONG)m_CasCardInfo.CardID[4] << 8) |
+		  ((ULONGLONG)m_CasCardInfo.CardID[5]);
+	mjd = (int)m_CasCardInfo.PairingMJD;
+
+	ExtractMJD(&yyyy, &mm, &dd, mjd);
+
 	return StdUtil::snprintf(pszText, MaxLength,
-			TEXT("%d%03lu %04lu %04lu %04lu %04lu"),
-			m_CasCardInfo.CardID[0] >> 5,
-			(unsigned long)(ID / (10000ULL * 10000ULL * 10000ULL * 10000ULL)) % 10000,
-			(unsigned long)(ID / (10000ULL * 10000ULL * 10000ULL)) % 10000,
-			(unsigned long)(ID / (10000ULL * 10000ULL) % 10000ULL),
-			(unsigned long)(ID / 10000ULL % 10000ULL),
-			(unsigned long)(ID % 10000ULL));
+		TEXT("%04lu %04lu %04lu %03luX %04d/%02d/%02d"),
+		(unsigned long)(ID / (10000ULL * 10000ULL * 1000ULL)) % 10000,
+		(unsigned long)(ID / (10000ULL * 1000ULL) % 10000),
+		(unsigned long)(ID / 1000ULL % 10000ULL),
+		(unsigned long)(ID % 1000ULL),
+		yyyy, mm, dd);
+}
+
+
+void CCasCard::ExtractMJD(int *yy, int *mm, int *dd, int mjd) const
+{
+	int a1, m1;
+	int a2, m2;
+	int a3, m3;
+	int a4, m4;
+	int mw;
+	int dw;
+	int yw;
+
+	mjd -= 51604; // 2000,3/1
+	if (mjd < 0) {
+		mjd += 0x10000;
+	}
+
+	a1 = mjd / 146097;
+	m1 = mjd % 146097;
+	a2 = m1 / 36524;
+	m2 = m1 - (a2 * 36524);
+	a3 = m2 / 1461;
+	m3 = m2 - (a3 * 1461);
+	a4 = m3 / 365;
+	if (a4 > 3) {
+		a4 = 3;
+	}
+	m4 = m3 - (a4 * 365);
+
+	mw = (1071 * m4 + 450) >> 15;
+	dw = m4 - ((979 * mw + 16) >> 5);
+
+	yw = a1 * 400 + a2 * 100 + a3 * 4 + a4 + 2000;
+	mw += 3;
+	if (mw > 12) {
+		mw -= 12;
+		yw += 1;
+	}
+	dw += 1;
+
+	*yy = yw;
+	*mm = mw;
+	*dd = dw;
+
 }
 
 
@@ -407,7 +456,7 @@ const BYTE * CCasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 	}
 
 	// バッファ準備
-	static const BYTE EcmReceiveCmd[] = {0x90, 0x34, 0x00, 0x00};
+	static const BYTE EcmReceiveCmd[] = {0x80, 0x34, 0x00, 0x00};	// ECM_RECEIVE_CMD {CLA, INS, P1, P2}
 	BYTE SendData[MAX_ECM_DATA_SIZE + 6];
 	BYTE RecvData[RECEIVE_BUFFER_SIZE];
 	::ZeroMemory(RecvData, sizeof(RecvData));
@@ -427,7 +476,7 @@ const BYTE * CCasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 	}
 
 	// サイズチェック
-	if (dwRecvSize != 25UL) {
+	if (dwRecvSize != 22UL) {
 		::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
 		SetError(ERR_TRANSMITERROR, TEXT("ECMのレスポンスサイズが不正です。"));
 		return NULL;
@@ -438,17 +487,18 @@ const BYTE * CCasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 	::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
 
 	// レスポンス解析
-	::CopyMemory(m_EcmStatus.KsData, &RecvData[6], sizeof(m_EcmStatus.KsData));
+	::CopyMemory(m_EcmStatus.KsData, &RecvData[0], sizeof(m_EcmStatus.KsData));
 
-	// リターンコード解析
-	switch (GetReturnCode(RecvData)) {
-	// Purchased: Viewing
-	case 0x0200U :	// Payment-deferred PPV
-	case 0x0400U :	// Prepaid PPV
-	case 0x0800U :	// Tier
+	// SW
+	if ((RecvData[20] << 8 | RecvData[21]) != 0x9000U) {
+		m_EcmStatus.bSucceeded = false;
+		SetError(ERR_ECMREFUSED, ECM_REFUSED_ERROR_TEXT);
+		return NULL;
+	}
 
-	case 0x4480U :	// Payment-deferred PPV
-	case 0x4280U :	// Prepaid PPV
+	// ISTS
+	switch (RecvData[19]) {
+	case 0x01U:
 		ClearError();
 		m_EcmStatus.bSucceeded = true;
 		return m_EcmStatus.KsData;
@@ -470,14 +520,14 @@ const bool CCasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize)
 		return false;
 	}
 
-	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > MAX_EMM_DATA_SIZE) {
+	if (pEmmData == NULL || dwEmmSize < 6UL || dwEmmSize > MAX_EMM_DATA_SIZE) {
 		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 
 	TRACE(TEXT("Send \"EMM Receive Command\"\n"));
 
-	static const BYTE EmmReceiveCmd[] = {0x90, 0x36, 0x00, 0x00};
+	static const BYTE EmmReceiveCmd[] = {0x80, 0x36, 0x00, 0x00};
 	BYTE SendData[MAX_EMM_DATA_SIZE + 6], RecvData[RECEIVE_BUFFER_SIZE];
 
 	::CopyMemory(SendData, EmmReceiveCmd, sizeof(EmmReceiveCmd));
@@ -492,29 +542,27 @@ const bool CCasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize)
 		return false;
 	}
 
-	if (RecvSize != 8UL) {
+	if (RecvSize != 4UL) {
 		SetError(ERR_TRANSMITERROR, TEXT("EMMのレスポンスサイズが不正です。"));
 		return false;
 	}
 
-	const WORD ReturnCode = GetReturnCode(RecvData);
-	TRACE(TEXT(" -> Return Code %04x\n"), ReturnCode);
-	switch (ReturnCode) {
-	case 0x2100U :	// 正常終了
+	const WORD CSTS = RecvData[0];
+	const WORD ISTS = RecvData[1];
+	const WORD SW = RecvData[2] << 8 | RecvData[3];
+	TRACE(TEXT(" -> CSTS %02x ISTS %02x SW %04x\n"), CSTS, ISTS, SW);
+	
+	// SW
+	if (SW != 0x9000U) {
+		SetError(ERR_EMMERROR, TEXT("EMMが受け付けられません。"));
+		return false;
+	}
+	
+	// ISTS
+	switch (ISTS) {
+	default:
 		ClearError();
 		return true;
-
-	case 0xA102U :	// 非運用(運用外プロトコル番号)
-		SetError(ERR_EMMERROR, TEXT("プロトコル番号が運用外です。"));
-		break;
-
-	case 0xA107U :	// セキュリティエラー(EMM改ざんエラー)
-		SetError(ERR_EMMERROR, TEXT("セキュリティエラーです。"));
-		break;
-
-	default:
-		SetError(ERR_EMMERROR, TEXT("EMMが受け付けられません。"));
-		break;
 	}
 
 	return false;

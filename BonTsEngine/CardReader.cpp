@@ -401,6 +401,19 @@ bool CSCardReader::Open(LPCTSTR pszReader)
 			return false;
 		}
 
+// for SPHD
+		// 初期化コマンドでスカパーHD用CASカードかどうか確認
+		static const BYTE InitSettingCmd[] = {0x80U, 0x5EU, 0x00U, 0x00U, 0x00U};
+		BYTE tmp[256] ;
+		DWORD RecvSize = sizeof(tmp) ;
+		if ( !Transmit( InitSettingCmd, sizeof(InitSettingCmd), tmp, &RecvSize ) ||
+			RecvSize != 46 ) {
+			Close();
+			SetError(TEXT("スカパーHD用ではないカードです。"));
+			return false;
+		}
+// for SPHD
+
 		LPTSTR pszReaderName;
 		BYTE Atr[32];
 		DWORD dwReaderLen = SCARD_AUTOALLOCATE, dwState, dwProtocol, dwAtrLen = sizeof(Atr);

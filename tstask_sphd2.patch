@@ -1,0 +1,164 @@
+diff -U 10 -rw TSTask_SPHD_org/BonTsEngine/TsTable.cpp TSTask_SPHD/BonTsEngine/TsTable.cpp
+--- TSTask_SPHD_org/BonTsEngine/TsTable.cpp	2018-07-22 01:39:34.634789100 +0900
++++ TSTask_SPHD/BonTsEngine/TsTable.cpp	2018-07-22 01:57:11.891984200 +0900
+@@ -664,20 +664,21 @@
+ {
+ 	Reset();
+ }
+ 
+ void CPmtTable::Reset()
+ {
+ 	// 状態をクリアする
+ 	CPsiSingleTable::Reset();
+ 
+ 	m_wPcrPID = 0xFFFFU;
++	m_wSdEcmPID = 0xFFFFU; // for SPSD ECM
+ 	m_TableDescBlock.Reset();
+ 	m_EsInfoArray.clear();
+ }
+ 
+ const WORD CPmtTable::GetProgramNumberID() const
+ {
+ 	return m_CurSection.GetTableIdExtension();
+ }
+ 
+ const WORD CPmtTable::GetPcrPID() const
+@@ -690,38 +691,38 @@
+ {
+ 	// テーブルの記述子ブロックを返す
+ 	return &m_TableDescBlock;
+ }
+ 
+ const WORD CPmtTable::GetEcmPID() const
+ {
+ 	// ECMのPIDを返す
+ 	const CCaMethodDesc *pCaMethodDesc = m_TableDescBlock.GetDesc<CCaMethodDesc>();
+ 
+-	return (pCaMethodDesc)? pCaMethodDesc->GetCaPID() : 0xFFFFU;
++	return (pCaMethodDesc)? pCaMethodDesc->GetCaPID() : m_wSdEcmPID; // 0xFFFFU; // for SPSD ECM
+ }
+ 
+ const WORD CPmtTable::GetEcmPID(const WORD CASystemID) const
+ {
+ 	// 指定されたCA_system_idに対応するECMのPIDを返す
+ 	for (WORD i = 0 ; i < m_TableDescBlock.GetDescNum() ; i++) {
+ 		const CBaseDesc *pDesc = m_TableDescBlock.GetDescByIndex(i);
+ 
+ 		if (pDesc != NULL && pDesc->GetTag() == CCaMethodDesc::DESC_TAG) {
+ 			const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(pDesc);
+ 
+ 			if (pCaDesc != NULL && pCaDesc->GetCaMethodID() == CASystemID)
+ 				return pCaDesc->GetCaPID();
+ 		}
+ 	}
+ 
+-	return 0xFFFF;
++	return (m_wSdEcmPID); // 0xFFFF; // for SPSD ECM
+ }
+ 
+ const WORD CPmtTable::GetEsInfoNum() const
+ {
+ 	// ES情報の数を返す
+ 	return (WORD)m_EsInfoArray.size();
+ }
+ 
+ const BYTE CPmtTable::GetStreamTypeID(const WORD wIndex) const
+ {
+@@ -746,20 +747,21 @@
+ 	const WORD wDataSize = pCurSection->GetPayloadSize();
+ 	const BYTE *pHexData = pCurSection->GetPayloadData();
+ 
+ 	if (wDataSize < 4)
+ 		return false;
+ 
+ 	if(pCurSection->GetTableID() != 0x02U)return false;	// テーブルIDが不正
+ 
+ 	// 状態をクリアする
+ 	m_wPcrPID = 0xFFFFU;
++	m_wSdEcmPID = 0xFFFFU; // for SPSD ECM
+ 	m_EsInfoArray.clear();
+ 
+ 	// テーブルを解析する
+ 	m_wPcrPID = ((WORD)(pHexData[0] & 0x1FU) << 8) | (WORD)pHexData[1];				// +0,1
+ 	WORD wDescLen = ((WORD)(pHexData[2] & 0x0FU) << 8) | (WORD)pHexData[3];
+ 	if (4 + wDescLen > wDataSize)
+ 		return false;
+ 
+ 	// 記述子ブロック
+ 	m_TableDescBlock.ParseBlock(&pHexData[4], wDescLen);
+@@ -784,20 +786,31 @@
+ 		PmtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wDescLen);
+ 
+ #ifdef _DEBUG
+ 		if (m_bDebugTrace)
+ 			TRACE(TEXT("[%u] Stream Type ID = %02X  PID = %04X\n"),
+ 				  m_EsInfoArray.size(), PmtItem.byStreamTypeID, PmtItem.wEsPID);
+ #endif
+ 
+ 		// テーブルに追加する
+ 		m_EsInfoArray.push_back(PmtItem);
++
++		// for SPSD ECM
++		if ( (m_wSdEcmPID > 0x1FFFU) && (pCurSection->GetTableIdExtension() < 32768) ) {
++			const CBaseDesc *pDesc = PmtItem.DescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG);
++			if ( pDesc != NULL ) {
++				const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(pDesc);
++				if ( (pCaDesc != NULL) && (pCaDesc->GetCaMethodID() == 0x01U) ) {
++					m_wSdEcmPID = pCaDesc->GetCaPID();
++				}
++			}
++		}
+ 	}
+ 
+ 	return true;
+ }
+ 
+ 
+ /////////////////////////////////////////////////////////////////////////////
+ // SDTテーブル抽象化クラス
+ /////////////////////////////////////////////////////////////////////////////
+ 
+diff -U 10 -rw TSTask_SPHD_org/BonTsEngine/TsTable.h TSTask_SPHD/BonTsEngine/TsTable.h
+--- TSTask_SPHD_org/BonTsEngine/TsTable.h	2018-07-22 01:39:34.634789100 +0900
++++ TSTask_SPHD/BonTsEngine/TsTable.h	2018-07-22 01:55:28.210728400 +0900
+@@ -284,35 +284,40 @@
+ 	const WORD GetPcrPID() const;
+ 	const CDescBlock * GetTableDesc() const;
+ 	const WORD GetEcmPID() const;
+ 	const WORD GetEcmPID(const WORD CASystemID) const;
+ 
+ 	const WORD GetEsInfoNum() const;
+ 	const BYTE GetStreamTypeID(const WORD wIndex) const;
+ 	const WORD GetEsPID(const WORD wIndex) const;
+ 	const CDescBlock * GetItemDesc(const WORD wIndex) const;
+ 
++// for SPSD ECM
++	WORD GetSdEcmPID() const { return(m_wSdEcmPID); };
++
+ protected:
+ 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection) override;
+ 
+ 	struct TAG_PMTITEM
+ 	{
+ 		BYTE byStreamTypeID;			// Stream Type ID
+ 		WORD wEsPID;					// Elementary Stream PID
+ 		CDescBlock DescBlock;			// Stream ID Descriptor 他
+ 	};
+ 
+ 	std::vector<TAG_PMTITEM> m_EsInfoArray;
+ 
+ 	WORD m_wPcrPID;						// PCR_PID
+ 	CDescBlock m_TableDescBlock;		// Conditional Access Method Descriptor 他
+ 
++	WORD m_wSdEcmPID; 	// for SPSD ECM
++
+ #ifdef _DEBUG
+ 	bool m_bDebugTrace;
+ #endif
+ };
+ 
+ 
+ /////////////////////////////////////////////////////////////////////////////
+ // SDTテーブル抽象化クラス
+ /////////////////////////////////////////////////////////////////////////////
+ 
