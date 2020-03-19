@@ -21,6 +21,10 @@ namespace TSTask
 
 		int m_ClientShowCommand;
 
+		int m_Descramble;
+		String m_CardReaderName;
+		BoolSettingValue m_EMMProcess;
+
 		int m_TuningSpace;
 		int m_Channel;
 		int m_RemoteControlKeyID;
@@ -35,6 +39,7 @@ namespace TSTask
 		int m_RecordingDelay;
 		int m_RecordingDuration;
 		int m_RecordingService;
+		int m_RecordingDescramble;
 		BoolSettingValue m_Record1Seg;
 		LONGLONG m_RecordingPreAllocateSize;
 		BoolSettingValue m_ExitOnRecordingStop;

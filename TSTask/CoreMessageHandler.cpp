@@ -35,6 +35,8 @@ namespace TSTask
 			{MESSAGE_SetService,				&CCoreMessageHandler::OnSetService},
 			{MESSAGE_GetService,				&CCoreMessageHandler::OnGetService},
 			{MESSAGE_GetServiceList,			&CCoreMessageHandler::OnGetServiceList},
+			{MESSAGE_OpenCasCard,				&CCoreMessageHandler::OnOpenCasCard},
+			{MESSAGE_CloseCasCard,				&CCoreMessageHandler::OnCloseCasCard},
 			{MESSAGE_StartRecording,			&CCoreMessageHandler::OnStartRecording},
 			{MESSAGE_StopRecording,				&CCoreMessageHandler::OnStopRecording},
 			{MESSAGE_ChangeRecordingFile,		&CCoreMessageHandler::OnChangeRecordingFile},
@@ -281,6 +283,37 @@ namespace TSTask
 		ServiceList List;
 		if (!m_Core.GetServiceList(&List)
 				|| !BasicMessage::GetServiceList::SetResponse(pResponse,List)) {
+			pResponse->SetProperty(MESSAGE_PROPERTY_Result,MESSAGE_RESULT_Failed);
+			return true;
+		}
+
+		pResponse->SetProperty(MESSAGE_PROPERTY_Result,MESSAGE_RESULT_OK);
+
+		return true;
+	}
+
+	bool CCoreMessageHandler::OnOpenCasCard(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse)
+	{
+		OutLog(LOG_INFO,L"カードオープンのメッセージを受信しました。");
+
+		String Name;
+		bool fHasName=pMessage->GetProperty(MESSAGE_PROPERTY_Name,&Name);
+
+		if (!m_Core.OpenCasCard(fHasName?Name.c_str():nullptr)) {
+			pResponse->SetProperty(MESSAGE_PROPERTY_Result,MESSAGE_RESULT_Failed);
+			return true;
+		}
+
+		pResponse->SetProperty(MESSAGE_PROPERTY_Result,MESSAGE_RESULT_OK);
+
+		return true;
+	}
+
+	bool CCoreMessageHandler::OnCloseCasCard(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse)
+	{
+		OutLog(LOG_INFO,L"カードクローズのメッセージを受信しました。");
+
+		if (!m_Core.CloseCasCard()) {
 			pResponse->SetProperty(MESSAGE_PROPERTY_Result,MESSAGE_RESULT_Failed);
 			return true;
 		}

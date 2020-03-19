@@ -9,6 +9,7 @@
 #include "../BonTsEngine/BonSrcDecoder.h"
 #include "../BonTsEngine/TsPacketParser.h"
 #include "../BonTsEngine/TsAnalyzer.h"
+#include "../BonTsEngine/TsDescrambler.h"
 #include "../BonTsEngine/TsRecorder.h"
 #include "../BonTsEngine/TsGrabber.h"
 #include "../BonTsEngine/TsSelector.h"
@@ -47,6 +48,10 @@ public:
 		virtual void OnEventUpdated(CTsAnalyzer *pTsAnalyzer) {}
 		virtual void OnTotUpdated(CTsAnalyzer *pTsAnalyzer) {}
 		virtual void OnFileWriteError(CTsRecorder *pTsRecoder, DWORD ErrorCode) {}
+		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
+		virtual void OnEcmError(LPCTSTR pszText) {}
+		virtual void OnEcmRefused() {}
+		virtual void OnCardReaderHung() {}
 	};
 
 	CDtvEngine(void);
@@ -69,6 +74,13 @@ public:
 	bool SetService(const WORD wService);
 	bool GetServiceID(WORD *pServiceID);
 	bool SetServiceByID(const WORD ServiceID, const bool bReserve = true);
+
+	bool OpenCasCard(CCardReader::ReaderType CardReaderType, LPCTSTR pszReaderName = NULL);
+	bool CloseCasCard();
+	bool EnableDescramble(bool bDescramble);
+	bool SetDescrambleService(WORD ServiceID);
+	bool SetDescrambleCurServiceOnly(bool bOnly);
+	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }
 
 	bool SetWriteStream(WORD ServiceID, DWORD Stream = CTsSelector::STREAM_ALL);
 	bool GetWriteStream(WORD *pServiceID, DWORD *pStream = NULL);
@@ -97,6 +109,7 @@ public:
 	CBonSrcDecoder m_BonSrcDecoder;
 	CTsPacketParser m_TsPacketParser;
 	CTsAnalyzer m_TsAnalyzer;
+	CTsDescrambler m_TsDescrambler;
 	CTsPacketCounter m_TsPacketCounter;
 	CTsGrabber m_TsGrabber;
 	CTsRecorder m_TsRecorder;
@@ -127,8 +140,10 @@ protected:
 	WORD m_SetChannelServiceID;
 
 	bool m_bBuiled;
+	bool m_bDescramble;
 	bool m_bStartStreamingOnDriverOpen;
 
+	bool m_bDescrambleCurServiceOnly;
 	bool m_bWriteCurServiceOnly;
 	DWORD m_WriteStream;
 

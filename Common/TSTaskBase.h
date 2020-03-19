@@ -100,6 +100,14 @@ namespace TSTask
 		SERVICE_SELECT_TRAILER
 	};
 
+	enum DescrambleType
+	{
+		DESCRAMBLE_NO,
+		DESCRAMBLE_ALL_SERVICES,
+		DESCRAMBLE_CURRENT_SERVICE,
+		DESCRAMBLE_TRAILER
+	};
+
 	enum
 	{
 		STREAM_MPEG1_VIDEO			= 0x00000001UL,
@@ -126,6 +134,7 @@ namespace TSTask
 		String FileName;
 		std::vector<String> Directories;
 		ServiceSelectType ServiceSelect;
+		DescrambleType Descramble;
 		DWORD Streams;
 	};
 
@@ -213,6 +222,15 @@ namespace TSTask
 	inline BYTE GetVersionMajor(DWORD Version) { return (BYTE)(Version >> 24); }
 	inline WORD GetVersionMinor(DWORD Version) { return (WORD)((Version >> 12) & 0xFFF); }
 	inline WORD GetVersionRevision(DWORD Version) { return (WORD)(Version & 0xFFF); }
+
+	enum Multi2InstructionType
+	{
+		MULTI2_INSTRUCTION_DEFAULT=-1,
+		MULTI2_INSTRUCTION_BASIC,
+		MULTI2_INSTRUCTION_SSE2,
+		MULTI2_INSTRUCTION_SSSE3,
+		MULTI2_INSTRUCTION_TRAILER
+	};
 
 }
 

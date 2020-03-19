@@ -29,6 +29,8 @@ namespace TSTask
 		bool OnSetService(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
 		bool OnGetService(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
 		bool OnGetServiceList(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
+		bool OnOpenCasCard(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
+		bool OnCloseCasCard(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
 		bool OnStartRecording(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
 		bool OnStopRecording(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);
 		bool OnChangeRecordingFile(CMessageServer *pServer,const CMessage *pMessage,CMessage *pResponse);

@@ -1,0 +1,36 @@
+前提パッチ
+https://peace.5ch.net/test/read.cgi/avi/1342285365/560
+	560 名無しさん＠編集中 sage 2015/08/13(木) 14:44:18.66 O39R7LXl
+
+	http://www1.axfc.net/uploader/so/3516629
+	動いたよ
+
+
+gitbash で以下のコマンドを実行でパッチが当たります。
+ファイルの配置については、察してください。
+x86 の /MD において、BonCasClient と実物理カードが動くことは確認しました。
+
+
+cd /c/Develop/
+/bin/rm -rf TSTask  TSTask_SPHD
+
+git clone https://github.com/DBCTRADO/TSTask
+mv TSTask TSTask_SPHD
+cd TSTask_SPHD
+cp ../tstask.patch .
+patch -p2 --binary < tstask.patch
+cp ../tstask2-rev2.patch .
+patch -p1 --binary < tstask2-rev2.patch
+cp ../tstask_sphd.patch .
+patch -p1 --binary < tstask_sphd.patch
+cp ../tstask_sphd2.patch .
+patch -p1 --binary < tstask_sphd2.patch
+cd ..
+
+git clone https://github.com/DBCTRADO/TSTask
+cd TSTask
+cp ../tstask.patch .
+patch -p2 --binary < tstask.patch
+cp ../tstask2-rev2.patch .
+patch -p1 --binary < tstask2-rev2.patch
+cd ..

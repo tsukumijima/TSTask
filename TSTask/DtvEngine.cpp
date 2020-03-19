@@ -27,6 +27,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_BonSrcDecoder(this)
 	, m_TsPacketParser(this)
 	, m_TsAnalyzer(this)
+	, m_TsDescrambler(this)
 	, m_TsPacketCounter(this)
 	, m_TsRecorder(this)
 	, m_TsGrabber(this)
@@ -38,8 +39,10 @@ CDtvEngine::CDtvEngine(void)
 #endif
 
 	, m_bBuiled(false)
+	, m_bDescramble(true)
 	, m_bStartStreamingOnDriverOpen(false)
 
+	, m_bDescrambleCurServiceOnly(false)
 	, m_bWriteCurServiceOnly(false)
 	, m_WriteStream(CTsSelector::STREAM_ALL)
 
@@ -77,6 +80,8 @@ bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler)
 	    ↓
 	m_TsAnalyzer
 	    ↓
+	m_TsDescrambler
+	    ↓
 	m_TsPacketCounter
 	    ↓
 	m_TsGrabber
@@ -93,7 +98,9 @@ bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler)
 	// デコーダグラフ構築
 	m_BonSrcDecoder.SetOutputDecoder(&m_TsPacketParser);
 	m_TsPacketParser.SetOutputDecoder(&m_TsAnalyzer);
-	m_TsAnalyzer.SetOutputDecoder(&m_TsPacketCounter);
+	m_TsAnalyzer.SetOutputDecoder(&m_TsDescrambler);
+	m_TsDescrambler.EnableDescramble(m_bDescramble);
+	m_TsDescrambler.SetOutputDecoder(&m_TsPacketCounter);
 	m_TsPacketCounter.SetOutputDecoder(&m_TsGrabber);
 #ifdef DTVENGINE_NETWORK_SUPPORT
 	m_TsGrabber.SetOutputDecoder(&m_MediaTee);
@@ -270,6 +277,9 @@ bool CDtvEngine::SetService(const WORD wService)
 		TRACE(TEXT("------- Service Select -------\n"));
 		TRACE(TEXT("%d (ServiceID = %04X)\n"), m_CurServiceIndex, wServiceID);
 
+		if (m_bDescrambleCurServiceOnly)
+			SetDescrambleService(wServiceID);
+
 		m_TsPacketCounter.SetActiveServiceID(wServiceID);
 
 		if (m_bWriteCurServiceOnly)
@@ -323,6 +333,71 @@ bool CDtvEngine::SetServiceByID(const WORD ServiceID, const bool bReserve)
 	}
 	m_SpecServiceID = ServiceID;
 
+	return true;
+}
+
+
+bool CDtvEngine::OpenCasCard(CCardReader::ReaderType CardReaderType, LPCTSTR pszReaderName)
+{
+	// B-CASカードを開く
+	if (CardReaderType != CCardReader::READER_NONE) {
+		Trace(CTracer::TYPE_INFORMATION, TEXT("B-CASカードを開いています..."));
+		if (!m_TsDescrambler.OpenCasCard(CardReaderType, pszReaderName)) {
+			TCHAR szText[256];
+
+			if (m_TsDescrambler.GetLastErrorText() != NULL)
+				StdUtil::snprintf(szText, _countof(szText),
+				TEXT("B-CASカードの初期化に失敗しました。%s"),
+				m_TsDescrambler.GetLastErrorText());
+			else
+				::lstrcpy(szText, TEXT("B-CASカードの初期化に失敗しました。"));
+			SetError(0, szText,
+				TEXT("カードリーダが接続されているか、設定で有効なカードリーダが選択されているか確認してください。"),
+				m_TsDescrambler.GetLastErrorSystemMessage());
+			return false;
+		}
+	}
+	else if (m_TsDescrambler.IsCasCardOpen()) {
+		m_TsDescrambler.CloseCasCard();
+	}
+	return true;
+}
+
+
+bool CDtvEngine::CloseCasCard()
+{
+	if (m_TsDescrambler.IsCasCardOpen())
+		m_TsDescrambler.CloseCasCard();
+	return true;
+}
+
+
+bool CDtvEngine::EnableDescramble(bool bDescramble)
+{
+	if (m_bDescramble != bDescramble) {
+		m_TsDescrambler.EnableDescramble(bDescramble);
+		m_bDescramble = bDescramble;
+	}
+	return true;
+}
+
+
+bool CDtvEngine::SetDescrambleService(WORD ServiceID)
+{
+	return m_TsDescrambler.SetTargetServiceID(ServiceID);
+}
+
+
+bool CDtvEngine::SetDescrambleCurServiceOnly(bool bOnly)
+{
+	if (m_bDescrambleCurServiceOnly != bOnly) {
+		WORD ServiceID = 0;
+
+		m_bDescrambleCurServiceOnly = bOnly;
+		if (bOnly)
+			GetServiceID(&ServiceID);
+		SetDescrambleService(ServiceID);
+	}
 	return true;
 }
 
@@ -629,6 +704,41 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			// 書き込みエラーが発生した
 			if (m_pEventHandler)
 				m_pEventHandler->OnFileWriteError(&m_TsRecorder, *static_cast<const DWORD*>(pParam));
+			return 0UL;
+		}
+	}
+	else if (pDecoder == &m_TsDescrambler) {
+		switch (dwEventID) {
+		case CTsDescrambler::EVENT_EMM_PROCESSED:
+			// EMM処理が行われた
+			if (m_pEventHandler)
+				m_pEventHandler->OnEmmProcessed(static_cast<const BYTE*>(pParam));
+			return 0UL;
+
+		case CTsDescrambler::EVENT_ECM_ERROR:
+			// ECM処理でエラーが発生した
+			if (m_pEventHandler) {
+				CTsDescrambler::EcmErrorInfo *pInfo = static_cast<CTsDescrambler::EcmErrorInfo*>(pParam);
+
+				if (m_TsDescrambler.GetEcmPIDByServiceID(m_CurServiceID) == pInfo->EcmPID)
+					m_pEventHandler->OnEcmError(pInfo->pszText);
+			}
+			return 0UL;
+
+		case CTsDescrambler::EVENT_ECM_REFUSED:
+			// ECMが受け付けられない
+			if (m_pEventHandler) {
+				CTsDescrambler::EcmErrorInfo *pInfo = static_cast<CTsDescrambler::EcmErrorInfo*>(pParam);
+
+				if (m_TsDescrambler.GetEcmPIDByServiceID(m_CurServiceID) == pInfo->EcmPID)
+					m_pEventHandler->OnEcmRefused();
+			}
+			return 0UL;
+
+		case CTsDescrambler::EVENT_CARD_READER_HUNG:
+			// カードリーダーから応答が無い
+			if (m_pEventHandler)
+				m_pEventHandler->OnCardReaderHung();
 			return 0UL;
 		}
 	}

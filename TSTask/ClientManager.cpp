@@ -167,6 +167,22 @@ namespace TSTask
 		BroadcastMessage(Message);
 	}
 
+	void CClientManager::OnCasCardOpened(LPCWSTR pszReaderName)
+	{
+		CMessage Message(MESSAGE_EVENT_CasCardOpened);
+
+		Message.SetProperty(MESSAGE_PROPERTY_Name,pszReaderName);
+
+		BroadcastMessage(Message);
+	}
+
+	void CClientManager::OnCasCardClosed()
+	{
+		CMessage Message(MESSAGE_EVENT_CasCardClosed);
+
+		BroadcastMessage(Message);
+	}
+
 	void CClientManager::OnRecordingStarted(const RecordingInfo &Info)
 	{
 		CMessage Message(MESSAGE_EVENT_RecordingStarted);
@@ -177,6 +193,7 @@ namespace TSTask
 		Message.SetProperty(MESSAGE_PROPERTY_FileName,FileName);
 		Message.SetProperty(MESSAGE_PROPERTY_Directory,Directory);
 		Message.SetProperty(MESSAGE_PROPERTY_ServiceSelect,CMessageProperty::IntType(Info.Settings.ServiceSelect));
+		Message.SetProperty(MESSAGE_PROPERTY_Descramble,CMessageProperty::IntType(Info.Settings.Descramble));
 
 		BroadcastMessage(Message);
 	}

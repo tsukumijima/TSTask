@@ -28,6 +28,8 @@ namespace TSTask
 		void OnTunerClosed() override;
 		void OnChannelChanged(DWORD Space,DWORD Channel,WORD ServiceID) override;
 		void OnServiceChanged(WORD ServiceID) override;
+		void OnCasCardOpened(LPCWSTR pszReaderName) override;
+		void OnCasCardClosed() override;
 		void OnRecordingStarted(const RecordingInfo &Info) override;
 		void OnRecordingStopped() override;
 		void OnRecordingFileChanged(LPCWSTR pszFileName) override;

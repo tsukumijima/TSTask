@@ -48,6 +48,15 @@ namespace TSTask
 		unsigned int GetStatisticsUpdateInterval() const;
 		bool SetStatisticsUpdateInterval(unsigned int Interval);
 
+		DescrambleType GetDescrambleType() const;
+		bool SetDescrambleType(DescrambleType Type);
+		bool GetCardReaderName(String *pName) const;
+		bool SetCardReaderName(const String &Name);
+		Multi2InstructionType GetMulti2Instruction() const;
+		bool SetMulti2Instruction(Multi2InstructionType Instruction);
+		bool GetEMMProcess() const;
+		bool SetEMMProcess(bool fEMMProcess);
+
 		bool SetLoggingLevel(LogType Level);
 		LogType GetLoggingLevel() const;
 		static LogType LoggingLevelToType(int Level) { return LogType(LOG_NONE-Level); }
@@ -74,6 +83,11 @@ namespace TSTask
 		TaskID m_TaskID;
 		ProcessPriority m_ProcessPriority;
 		unsigned int m_StatisticsUpdateInterval;
+
+		DescrambleType m_Descramble;
+		String m_CardReaderName;
+		Multi2InstructionType m_Multi2Instruction;
+		bool m_fEMMProcess;
 
 		LogType m_LoggingLevel;
 		unsigned int m_MaxLog;
@@ -138,6 +152,8 @@ namespace TSTask
 		bool SetMinFreeSpace(ULONGLONG Size);
 		ServiceSelectType GetServiceSelectType() const;
 		bool SetServiceSelectType(ServiceSelectType Type);
+		DescrambleType GetDescrambleType() const;
+		bool SetDescrambleType(DescrambleType Type);
 		DWORD GetStreams() const;
 		bool SetStreams(DWORD Streams);
 		bool SetStreamFlag(DWORD Flag,bool fSet=true);
@@ -169,6 +185,7 @@ namespace TSTask
 		std::vector<String> m_DirectoryList;
 		ULONGLONG m_MinFreeSpace;
 		ServiceSelectType m_ServiceSelect;
+		DescrambleType m_Descramble;
 		DWORD m_Streams;
 
 		bool m_fSystemRequired;

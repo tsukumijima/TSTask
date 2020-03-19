@@ -33,6 +33,7 @@ namespace TSTask
 
 	// CEventHandler
 		bool OnTunerOpen() override;
+		void OnTunerOpened() override;
 		bool OnRecordingStart(const RecordingSettings &Settings) override;
 		void OnRecordingStarted(const RecordingInfo &Info) override;
 		void OnRecordingStopped() override;
@@ -129,6 +130,10 @@ namespace TSTask
 
 		m_Core.Initialize();
 
+		m_Core.SetMulti2Instruction(m_CurSettings.General.GetMulti2Instruction());
+		m_Core.EnableEMMProcess(m_CurSettings.General.GetEMMProcess());
+		m_Core.SetDescramble(m_CurSettings.General.GetDescrambleType());
+
 		m_TSTaskWindow.Initialize(m_hInstance);
 
 		if (!m_TaskIdentity.Initialize(TASK_TYPE_SERVER,m_CurSettings.General.GetTaskID())) {
@@ -195,6 +200,11 @@ namespace TSTask
 
 		if (m_CurSettings.General.GetClientExecuteOnStart()) {
 			ExecuteClient();
+		}
+
+		if (m_CurSettings.General.GetDescrambleType()!=DESCRAMBLE_NO
+				|| m_CurSettings.Recording.GetDescrambleType()!=DESCRAMBLE_NO) {
+			OpenCasCard();
 		}
 
 		if (!m_CommandLine.m_BonDriverFileName.empty()) {
@@ -410,6 +420,11 @@ namespace TSTask
 
 		ApplyCommandLineSettings(m_CommandLine,m_CurSettings);
 
+		m_Core.EnableEMMProcess(m_CurSettings.General.GetEMMProcess());
+		if (!m_Core.IsRecording()) {
+			m_Core.SetDescramble(m_CurSettings.General.GetDescrambleType());
+		}
+
 		if (m_Core.IsStreaming()) {
 			m_Core.SetStreamingSendSize(m_CurSettings.Streaming.GetSendSize());
 			m_Core.SetStreamingSendWait(m_CurSettings.Streaming.GetSendWait(),
@@ -430,6 +445,13 @@ namespace TSTask
 
 		if (CommandLine.m_ClientShowCommand>=0)
 			Settings.General.SetClientShowCommand(CommandLine.m_ClientShowCommand);
+
+		if (CommandLine.m_Descramble>=0)
+			Settings.General.SetDescrambleType(DescrambleType(CommandLine.m_Descramble));
+		if (!CommandLine.m_CardReaderName.empty())
+			Settings.General.SetCardReaderName(CommandLine.m_CardReaderName);
+		if (CommandLine.m_EMMProcess!=BOOL_DEFAULT)
+			Settings.General.SetEMMProcess(CommandLine.m_EMMProcess==BOOL_TRUE);
 
 		if (CommandLine.m_LoggingLevel>=0)
 			Settings.General.SetLoggingLevel(CGeneralSettings::LoggingLevelToType(CommandLine.m_LoggingLevel));
@@ -457,6 +479,8 @@ namespace TSTask
 		}
 		if (CommandLine.m_RecordingService>=0)
 			Settings.Recording.SetServiceSelectType(ServiceSelectType(CommandLine.m_RecordingService));
+		if (CommandLine.m_RecordingDescramble>=0)
+			Settings.Recording.SetDescrambleType(DescrambleType(CommandLine.m_RecordingDescramble));
 		if (CommandLine.m_Record1Seg!=BOOL_DEFAULT)
 			Settings.Recording.SetStreamFlag(STREAM_1SEG,CommandLine.m_Record1Seg==BOOL_TRUE);
 		if (CommandLine.m_RecordingPreAllocateSize>=0) {
@@ -533,8 +557,20 @@ namespace TSTask
 		return true;
 	}
 
+	void CTSTaskApp::OnTunerOpened()
+	{
+		if ((m_CurSettings.General.GetDescrambleType()!=DESCRAMBLE_NO || m_CurSettings.Recording.GetDescrambleType()!=DESCRAMBLE_NO)
+			&& !m_Core.IsCasCardOpened()) {
+			OpenCasCard();
+		}
+	}
+
 	bool CTSTaskApp::OnRecordingStart(const RecordingSettings &Settings)
 	{
+		if (Settings.Descramble!=DESCRAMBLE_NO && !m_Core.IsCasCardOpened()) {
+			OpenCasCard();
+		}
+
 		m_Core.SetWriteBufferSize(m_CurSettings.Recording.GetWriteBufferSize());
 		m_Core.SetMaxWritePendingSize(m_CurSettings.Recording.GetMaxPendingSize());
 		m_Core.SetWritePreAllocate(m_CurSettings.Recording.GetPreAllocate()?
@@ -555,6 +591,8 @@ namespace TSTask
 		if (m_CurSettings.Recording.GetExitOnStop()) {
 			OutLog(LOG_INFO,L"録画が停止したのでプログラムを終了します。");
 			Quit();
+		} else {
+			m_Core.SetDescramble(m_CurSettings.General.GetDescrambleType());
 		}
 	}
 

@@ -48,6 +48,15 @@ namespace TSTask
 		return true;
 	}
 
+	bool CTSTaskAppCore::OpenCasCard()
+	{
+		String CardReaderName;
+
+		m_CurSettings.General.GetCardReaderName(&CardReaderName);
+
+		return m_Core.OpenCasCard(CardReaderName.c_str());
+	}
+
 	bool CTSTaskAppCore::FormatRecordFileName(LPCWSTR pszFormat,String *pFileName)
 	{
 		return m_Core.FormatRecordFileName(pszFormat,pFileName,

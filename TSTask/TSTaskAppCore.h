@@ -28,6 +28,8 @@ namespace TSTask
 
 		bool ExecuteClient();
 
+		bool OpenCasCard();
+
 		bool FormatRecordFileName(LPCWSTR pszFormat,String *pFileName);
 
 		bool ReserveRecording(const ReserveSettings &Reserve,const RecordingSettings &RecSettings);

@@ -27,8 +27,6 @@ namespace TSTaskCentre
 		WM_APP_TUNER_CLOSED,
 		WM_APP_CHANNEL_CHANGED,
 		WM_APP_SERVICE_CHANGED,
-		WM_APP_CAS_CARD_OPENED,
-		WM_APP_CAS_CARD_CLOSED,
 		WM_APP_RECORDING_STARTED,
 		WM_APP_RECORDING_STOPPED,
 		WM_APP_RECORDING_FILE_CHANGED,
@@ -593,16 +591,6 @@ namespace TSTaskCentre
 		return PostMessage(WM_APP_SERVICE_CHANGED,ID,0);
 	}
 
-	bool CMainBoard::NotifyCasCardOpened(TSTask::TaskID ID)
-	{
-		return PostMessage(WM_APP_CAS_CARD_OPENED,ID,0);
-	}
-
-	bool CMainBoard::NotifyCasCardClosed(TSTask::TaskID ID)
-	{
-		return PostMessage(WM_APP_CAS_CARD_CLOSED,ID,0);
-	}
-
 	bool CMainBoard::NotifyRecordingStarted(TSTask::TaskID ID)
 	{
 		return PostMessage(WM_APP_RECORDING_STARTED,ID,0);
@@ -891,16 +879,6 @@ namespace TSTaskCentre
 			UpdateChannelStatus(TSTask::TaskID(wParam));
 			UpdateEventStatus(TSTask::TaskID(wParam));
 			m_Core.ExecuteTaskToolOnEvent(TSTask::TaskID(wParam),TSTask::MESSAGE_EVENT_ServiceChanged);
-			return 0;
-
-		case WM_APP_CAS_CARD_OPENED:
-			TRACE(L"WM_APP_CAS_CARD_OPENED(%Iu)\n",wParam);
-			m_Core.ExecuteTaskToolOnEvent(TSTask::TaskID(wParam),TSTask::MESSAGE_EVENT_CasCardOpened);
-			return 0;
-
-		case WM_APP_CAS_CARD_CLOSED:
-			TRACE(L"WM_APP_CAS_CARD_CLOSED(%Iu)\n",wParam);
-			m_Core.ExecuteTaskToolOnEvent(TSTask::TaskID(wParam),TSTask::MESSAGE_EVENT_CasCardClosed);
 			return 0;
 
 		case WM_APP_RECORDING_STARTED:

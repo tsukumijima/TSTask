@@ -13,6 +13,8 @@
 // TSパケット抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
+#define TSPACKET_NEED_ALIGNED_PAYLOAD
+
 #define TS_PACKETSIZE	(188U)	// TSパケットサイズ
 
 class CTsPacket : public CMediaData

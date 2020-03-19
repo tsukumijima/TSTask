@@ -23,6 +23,11 @@ namespace TSTask
 		virtual void OnChannelChangeFailed(DWORD Space,DWORD Channel,WORD ServiceID) {}
 		virtual bool OnServiceChange(WORD ServiceID) { return true; }
 		virtual void OnServiceChanged(WORD ServiceID) {}
+		virtual bool OnCasCardOpen(LPCWSTR pszReaderName) { return true; }
+		virtual void OnCasCardOpened(LPCWSTR pszReaderName) {}
+		virtual void OnCasCardOpenFailed(LPCWSTR pszReaderName) {}
+		virtual bool OnCasCardClose() { return true; }
+		virtual void OnCasCardClosed() {}
 		virtual bool OnRecordingStart(const RecordingSettings &Settings) { return true; }
 		virtual void OnRecordingStarted(const RecordingInfo &Info) {}
 		virtual void OnRecordingStartFailed(const RecordingSettings &Settings) {}

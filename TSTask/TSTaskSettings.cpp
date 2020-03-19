@@ -29,6 +29,11 @@ namespace TSTask
 		m_ClientShowCommand=-1;
 		m_fClientExecuteOnStart=true;
 
+		m_Descramble=DESCRAMBLE_CURRENT_SERVICE;
+		m_CardReaderName.clear();
+		m_Multi2Instruction=MULTI2_INSTRUCTION_DEFAULT;
+		m_fEMMProcess=false;
+
 		m_LoggingLevel=LOG_INFO;
 		m_MaxLog=500;
 		m_fLogOutputToFile=false;
@@ -63,6 +68,13 @@ namespace TSTask
 		if (Settings.Read(L"General.StatisticsUpdateInterval",&Interval))
 			SetStatisticsUpdateInterval(Interval);
 
+		if (Settings.Read(L"General.Descramble",&Value))
+			SetDescrambleType(DescrambleType(Value));
+		Settings.Read(L"General.CardReader",&m_CardReaderName);
+		if (Settings.Read(L"General.Multi2Instruction",&Value))
+			SetMulti2Instruction(Multi2InstructionType(Value));
+		Settings.Read(L"General.EMMProcess",&m_fEMMProcess);
+
 		if (Settings.Read(L"Logging.Level",&Value))
 			SetLoggingLevel(LogType(LOG_NONE-Value));
 		Settings.Read(L"Logging.MaxCount",&m_MaxLog);
@@ -94,6 +106,11 @@ namespace TSTask
 		else
 			Settings.Write(L"General.ProcessPriority",L"");
 		Settings.Write(L"General.StatisticsUpdateInterval",m_StatisticsUpdateInterval);
+
+		Settings.Write(L"General.Descramble",(int)m_Descramble);
+		Settings.Write(L"General.CardReader",m_CardReaderName);
+		Settings.Write(L"General.Multi2Instruction",(int)m_Multi2Instruction);
+		Settings.Write(L"General.EMMProcess",m_fEMMProcess);
 
 		Settings.Write(L"Logging.Level",LOG_NONE-(int)m_LoggingLevel);
 		Settings.Write(L"Logging.MaxCount",m_MaxLog);
@@ -281,6 +298,69 @@ namespace TSTask
 			return false;
 
 		m_StatisticsUpdateInterval=Interval;
+
+		return true;
+	}
+
+	DescrambleType CGeneralSettings::GetDescrambleType() const
+	{
+		return m_Descramble;
+	}
+
+	bool CGeneralSettings::SetDescrambleType(DescrambleType Type)
+	{
+		if (Type<0 || Type>=TSTask::DESCRAMBLE_TRAILER)
+			return false;
+
+		m_Descramble=Type;
+
+		return true;
+	}
+
+	bool CGeneralSettings::GetCardReaderName(String *pName) const
+	{
+		if (pName==nullptr)
+			return false;
+
+		CRWLockRead Lock(*m_pLock);
+
+		*pName=m_CardReaderName;
+
+		return true;
+	}
+
+	bool CGeneralSettings::SetCardReaderName(const String &Name)
+	{
+		CRWLockRead Lock(*m_pLock);
+
+		m_CardReaderName=Name;
+
+		return true;
+	}
+
+	Multi2InstructionType CGeneralSettings::GetMulti2Instruction() const
+	{
+		return m_Multi2Instruction;
+	}
+
+	bool CGeneralSettings::SetMulti2Instruction(Multi2InstructionType Instruction)
+	{
+		if (Instruction<MULTI2_INSTRUCTION_DEFAULT || Instruction>=MULTI2_INSTRUCTION_TRAILER)
+			return false;
+
+		m_Multi2Instruction=Instruction;
+
+		return true;
+	}
+
+	bool CGeneralSettings::GetEMMProcess() const
+	{
+		return m_fEMMProcess;
+	}
+
+	bool CGeneralSettings::SetEMMProcess(bool fEMMProcess)
+	{
+		m_fEMMProcess=fEMMProcess;
 
 		return true;
 	}
@@ -508,6 +588,7 @@ namespace TSTask
 		m_MinFreeSpace=100*1024*1024;
 
 		m_ServiceSelect=SERVICE_SELECT_ALL;
+		m_Descramble=DESCRAMBLE_CURRENT_SERVICE;
 		m_Streams=STREAM_ALL;
 
 		m_fSystemRequired=true;
@@ -545,6 +626,8 @@ namespace TSTask
 			m_MinFreeSpace=Size;
 		if (Settings.Read(L"Recording.Service",&Value))
 			SetServiceSelectType(ServiceSelectType(Value));
+		if (Settings.Read(L"Recording.Descramble",&Value))
+			SetDescrambleType(DescrambleType(Value));
 		bool f;
 		if (Settings.Read(L"Recording.SaveCaption",&f))
 			SetStreamFlagImpl(STREAM_CAPTION,f);
@@ -590,6 +673,7 @@ namespace TSTask
 		}
 		Settings.Write(L"Recording.MinFreeSpace",(LONGLONG)m_MinFreeSpace);
 		Settings.Write(L"Recording.Service",(int)m_ServiceSelect);
+		Settings.Write(L"Recording.Descramble",(int)m_Descramble);
 		Settings.Write(L"Recording.SaveCaption",(m_Streams&STREAM_CAPTION)!=0);
 		Settings.Write(L"Recording.SaveDataCarrousel",(m_Streams&STREAM_DATA_CARROUSEL)!=0);
 		Settings.Write(L"Recording.1SegOnly",(m_Streams&STREAM_1SEG)!=0);
@@ -713,6 +797,21 @@ namespace TSTask
 		return true;
 	}
 
+	DescrambleType CRecordingSettings::GetDescrambleType() const
+	{
+		return m_Descramble;
+	}
+
+	bool CRecordingSettings::SetDescrambleType(DescrambleType Type)
+	{
+		if (Type<0 || Type>=TSTask::DESCRAMBLE_TRAILER)
+			return false;
+
+		m_Descramble=Type;
+
+		return true;
+	}
+
 	DWORD CRecordingSettings::GetStreams() const
 	{
 		return m_Streams;
@@ -759,6 +858,7 @@ namespace TSTask
 		for (const auto &e:m_DirectoryList)
 			pSettings->Directories.push_back(e);
 		pSettings->ServiceSelect=m_ServiceSelect;
+		pSettings->Descramble=m_Descramble;
 		pSettings->Streams=m_Streams;
 
 		return true;

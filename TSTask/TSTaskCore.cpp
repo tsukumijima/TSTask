@@ -70,6 +70,8 @@ namespace TSTask
 		CloseTuner();
 		UnloadBonDriver();
 
+		CloseCasCard();
+
 		m_DtvEngine.CloseEngine();
 
 		m_EventHandlerList.clear();
@@ -653,6 +655,141 @@ namespace TSTask
 		return true;
 	}
 
+	bool CTSTaskCore::OpenCasCard(LPCWSTR pszReaderName)
+	{
+		if (!m_fInitialized)
+			return false;
+
+		if (!CloseCasCard())
+			return false;
+
+		OutLog(LOG_INFO, L"B-CASカードを開きます。(%s)", IsStringEmpty(pszReaderName) ? L"指定なし" : pszReaderName);
+
+		CTryBlockLock Lock(m_Lock);
+		if (!Lock.TryLock(m_LockTimeout)) {
+			OutTimeoutErrorLog();
+			return false;
+		}
+
+		if (!ListUtility::Enum(m_EventHandlerList.begin(), m_EventHandlerList.end(),
+			[pszReaderName](TSTask::CEventHandler *pHandler) {
+			return pHandler->OnCasCardOpen(pszReaderName);
+		})) {
+			OutLog(LOG_INFO, L"B-CASカードオープンがキャンセルされました。");
+			return false;
+		}
+
+		if (IsStringEmpty(pszReaderName))
+			pszReaderName = nullptr;
+
+		if (!m_DtvEngine.OpenCasCard(CCardReader::READER_SCARD, pszReaderName)) {
+			OutBonTsEngineErrorLog(m_DtvEngine);
+
+			for (auto e:m_EventHandlerList)
+				e->OnCasCardOpenFailed(pszReaderName);
+
+			return false;
+		}
+
+		LPCWSTR pszName = m_DtvEngine.m_TsDescrambler.GetCardReaderName();
+		if (pszName != nullptr) {
+			WCHAR szCardID[32];
+
+			m_DtvEngine.m_TsDescrambler.FormatCasCardID(szCardID, _countof(szCardID));
+			OutLog(LOG_INFO, L"カードリーダー(%s)をオープンしました。(カードID %s / メーカー識別 %c / バージョン %d)",
+				pszName,
+				szCardID,
+				m_DtvEngine.m_TsDescrambler.GetCasCardManufacturerID(),
+				m_DtvEngine.m_TsDescrambler.GetCasCardVersion());
+		}
+
+		OutLog(LOG_VERBOSE, L"B-CASカードが開かれたことを通知します。");
+
+		for (auto e:m_EventHandlerList)
+			e->OnCasCardOpened(pszReaderName);
+
+		return true;
+	}
+
+	bool CTSTaskCore::CloseCasCard()
+	{
+		if (!IsCasCardOpened())
+			return true;
+
+		OutLog(LOG_INFO, L"B-CASカードを閉じます。");
+
+		CTryBlockLock Lock(m_Lock);
+		if (!Lock.TryLock(m_LockTimeout)) {
+			OutTimeoutErrorLog();
+			return false;
+		}
+
+		if (!ListUtility::Enum(m_EventHandlerList.begin(), m_EventHandlerList.end(),
+			[](TSTask::CEventHandler *pHandler) { return pHandler->OnCasCardClose(); })) {
+			OutLog(LOG_INFO, L"B-CASカードクローズがキャンセルされました。");
+			return false;
+		}
+
+		if (!m_DtvEngine.CloseCasCard()) {
+			OutBonTsEngineErrorLog(m_DtvEngine);
+			return false;
+		}
+
+		OutLog(LOG_VERBOSE, L"B-CASカードが閉じられたことを通知します。");
+
+		for (auto e:m_EventHandlerList)
+			e->OnCasCardClosed();
+
+		return true;
+	}
+
+	bool CTSTaskCore::IsCasCardOpened() const
+	{
+		return m_DtvEngine.m_TsDescrambler.IsCasCardOpen();
+	}
+
+	bool CTSTaskCore::SetDescramble(DescrambleType Descramble)
+	{
+		OutLog(LOG_INFO, L"スクランブル解除モードを設定します。(%d)", (int)Descramble);
+
+		CTryBlockLock Lock(m_Lock);
+		if (!Lock.TryLock(m_LockTimeout)) {
+			OutTimeoutErrorLog();
+			return false;
+		}
+
+		m_DtvEngine.EnableDescramble(Descramble != DESCRAMBLE_NO);
+		m_DtvEngine.SetDescrambleCurServiceOnly(Descramble == DESCRAMBLE_CURRENT_SERVICE);
+
+		return true;
+	}
+
+	bool CTSTaskCore::SetMulti2Instruction(Multi2InstructionType Instruction)
+	{
+		if (Instruction<MULTI2_INSTRUCTION_DEFAULT || Instruction >= MULTI2_INSTRUCTION_TRAILER)
+			return false;
+
+		if (Instruction == MULTI2_INSTRUCTION_DEFAULT) {
+			if (CTsDescrambler::IsSSSE3Available())
+				Instruction = MULTI2_INSTRUCTION_SSSE3;
+			else if (CTsDescrambler::IsSSE2Available())
+				Instruction = MULTI2_INSTRUCTION_SSE2;
+			else
+				Instruction = MULTI2_INSTRUCTION_BASIC;
+		}
+
+		OutLog(LOG_INFO, L"スクランブル解除の拡張命令を設定します。(%d)", (int)Instruction);
+
+		return m_DtvEngine.m_TsDescrambler.SetInstruction(CTsDescrambler::InstructionType(Instruction));
+	}
+
+	bool CTSTaskCore::EnableEMMProcess(bool fEMMProcess)
+	{
+		OutLog(LOG_INFO, L"EMM処理を%s効にします。", fEMMProcess ? L"有" : L"無");
+
+		return m_DtvEngine.m_TsDescrambler.EnableEmmProcess(fEMMProcess);
+	}
+
 	bool CTSTaskCore::StartRecording(const RecordingSettings &Settings)
 	{
 		if (Settings.Directories.empty() || Settings.Directories.front().empty()
@@ -1130,6 +1267,7 @@ namespace TSTask
 
 		m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
 		m_DtvEngine.m_TsPacketCounter.ResetScrambledPacketCount();
+		m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
 
 		for (auto e:m_EventHandlerList)
 			e->OnErrorStatisticsReset();
@@ -1664,6 +1802,27 @@ namespace TSTask
 		OutSystemErrorLog(ErrorCode,L"ファイルの書き出しでエラーが発生しました。");
 
 		SetNextRecordingDirectory();
+	}
+
+	void CTSTaskCore::OnEmmProcessed(const BYTE *pEmmData)
+	{
+		if (pEmmData != nullptr)
+			OutLog(LOG_INFO, L"EMM処理を行いました。");
+	}
+
+	void CTSTaskCore::OnEcmError(LPCTSTR pszText)
+	{
+		OutLog(LOG_ERROR, L"ECM処理でエラーが発生しました。(%s)", IsStringEmpty(pszText) ? L"?" : pszText);
+	}
+
+	void CTSTaskCore::OnEcmRefused()
+	{
+		OutLog(LOG_WARNING, L"契約されていないためスクランブル解除できません。");
+	}
+
+	void CTSTaskCore::OnCardReaderHung()
+	{
+		OutLog(LOG_ERROR, L"カードリーダーが応答しません。");
 	}
 
 	void CTSTaskCore::OnTrace(::CTracer::TraceType Type,LPCTSTR pszOutput)

@@ -1,0 +1,12 @@
+TSTaskの現時点(2015/08/13)のバージョン
+https://github.com/DBCTRADO/TSTask/archive/5cafebc423e5232871e4713ac2e2dc532b2b1b8d.zip
+を、RecTask相当にするパッチです。
+
+> patch -p0 --binary < tstask.patch
+
+みたいな感じで適用します。
+
+TVCASが使える方式も考えたのですが、コマンドオプション考えるのが面倒だったのと、
+確実に重くなる(TSデータに対するパケットパースとメモリコピーが倍くらいに増える)のが
+嫌だったので、直接TsDescramblerを繋げる形にしました。
+B1版が欲しい人はTVCAS_B25をB1用に変更するのと同じ要領で。

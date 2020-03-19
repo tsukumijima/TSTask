@@ -1,0 +1,259 @@
+diff -U 10 -rwN TSTask_patched1/BonTsEngine/CardReader.cpp TSTask/BonTsEngine/CardReader.cpp
+--- TSTask_patched1/BonTsEngine/CardReader.cpp	2018-08-10 11:50:17.215834100 +0900
++++ TSTask/BonTsEngine/CardReader.cpp	2018-08-10 11:51:34.742919400 +0900
+@@ -900,21 +900,21 @@
+ 	}
+ 
+ 	typedef LONG (WINAPI *CasLinkEstablishContextFunc)(DWORD, LPCVOID, LPCVOID, LPSCARDCONTEXT);
+ 	typedef LONG (WINAPI *CasLinkListReadersFunc)(SCARDCONTEXT, LPCTSTR, LPTSTR, LPDWORD);
+ 	CasLinkEstablishContextFunc pEstablishContext;
+ 	CasLinkListReadersFunc pListReaders;
+ 
+ 	if (!GetLibraryFunc(m_hLib, pEstablishContext, "CasLinkEstablishContext")
+ 	 || !GetLibraryFunc(m_hLib, pListReaders, FUNC_NAME("CasLinkListReaders"))
+ 	 || !GetLibraryFunc(m_hLib, m_pCasLinkReleaseContext, "CasLinkReleaseContext")
+-	 || !GetLibraryFunc(m_hLib, m_pCasLinkConnect, "CasLinkConnect")
++	 || !GetLibraryFunc(m_hLib, m_pCasLinkConnect, FUNC_NAME("CasLinkConnect"))
+ 	 || !GetLibraryFunc(m_hLib, m_pCasLinkDisconnect, "CasLinkDisconnect")
+ 	 || !GetLibraryFunc(m_hLib, m_pCasLinkTransmit, "CasLinkTransmit")) {
+ 		::FreeLibrary(m_hLib);
+ 		m_hLib = NULL;
+ 		SetError(TEXT("関数のアドレスを取得できません。"));
+ 		return false;
+ 	}
+ 
+ 	if (pEstablishContext(SCARD_SCOPE_USER, NULL, NULL, &m_SCardContext) != SCARD_S_SUCCESS) {
+ 		::FreeLibrary(m_hLib);
+diff -U 10 -rwN TSTask_patched1/BonTsEngine/CardReader.h TSTask/BonTsEngine/CardReader.h
+--- TSTask_patched1/BonTsEngine/CardReader.h	2018-08-10 11:50:17.215834100 +0900
++++ TSTask/BonTsEngine/CardReader.h	2018-08-10 11:51:34.727145300 +0900
+@@ -1,13 +1,15 @@
+ #ifndef CARD_READER_H
+ #define CARD_READER_H
+ 
++#define CARDREADER_SCARD_DYNAMIC_SUPPORT
++#define CARDREADER_BONCASCLIENT_SUPPORT
+ 
+ #include <winscard.h>
+ #include "BonBaseClass.h"
+ 
+ 
+ // カードリーダー基底クラス
+ class __declspec(novtable) CCardReader : public CBonBaseClass
+ {
+ public:
+ 	enum ReaderType {
+diff -U 10 -rwN TSTask_patched1/BonTsEngine/TsStream.cpp TSTask/BonTsEngine/TsStream.cpp
+--- TSTask_patched1/BonTsEngine/TsStream.cpp	2018-08-10 11:48:45.657563900 +0900
++++ TSTask/BonTsEngine/TsStream.cpp	2018-08-10 11:51:34.711531400 +0900
+@@ -12,32 +12,38 @@
+ #pragma comment(lib, "winmm.lib")
+ 
+ #pragma intrinsic(memset, memcmp)
+ 
+ 
+ //////////////////////////////////////////////////////////////////////
+ // CTsPacketクラスの構築/消滅
+ //////////////////////////////////////////////////////////////////////
+ 
+ CTsPacket::CTsPacket()
++	 //: CMediaData(TS_PACKETSIZE)
+ {
+-#ifdef TSPACKET_NEED_ALIGNED_PAYLOAD
++	_ASSERT(!m_pData);
++
+ 	GetBuffer(4 + 192);
+-#else
+-	GetBuffer(TS_PACKETSIZE);
+-#endif
+ 
+ 	// 空のパケットを生成する
+ 	::ZeroMemory(&m_Header, sizeof(m_Header));
+ 	::ZeroMemory(&m_AdaptationField, sizeof(m_AdaptationField));
+ }
+ 
++CTsPacket::CTsPacket(const BYTE *pHexData)
++	: CMediaData(pHexData, TS_PACKETSIZE)
++{
++	// バイナリデータからパケットを生成する
++	ParsePacket();
++}
++
+ CTsPacket::CTsPacket(const CTsPacket &Operand)
+ {
+ 	*this = Operand;
+ }
+ 
+ CTsPacket::~CTsPacket()
+ {
+ 	ClearBuffer();
+ }
+ 
+@@ -183,39 +189,36 @@
+ 
+ 	::CopyMemory(m_pData,p,TS_PACKETSIZE);
+ 	p+=TS_PACKETSIZE;
+ 	::CopyMemory(&m_Header,p,sizeof(m_Header));
+ 	p+=sizeof(m_Header);
+ 	::CopyMemory(&m_AdaptationField,p,sizeof(m_AdaptationField));
+ 	if (m_AdaptationField.pOptionData)
+ 		m_AdaptationField.pOptionData=&m_pData[6];
+ }
+ 
+-#ifdef TSPACKET_NEED_ALIGNED_PAYLOAD
+-
+ void *CTsPacket::Allocate(size_t Size)
+ {
++	// スクランブル解除時に都合がいいように、ペイロードを16バイト境界に合わせる
+ 	return _aligned_offset_malloc(Size, 16, 4);
+ }
+ 
+ void CTsPacket::Free(void *pBuffer)
+ {
+ 	_aligned_free(pBuffer);
+ }
+ 
+ void *CTsPacket::ReAllocate(void *pBuffer, size_t Size)
+ {
+ 	return _aligned_offset_realloc(pBuffer, Size, 16, 4);
+ }
+ 
+-#endif	// TSPACKET_NEED_ALIGNED_PAYLOAD
+-
+ 
+ 
+ 
+ //////////////////////////////////////////////////////////////////////
+ // CPsiSectionクラスの構築/消滅
+ //////////////////////////////////////////////////////////////////////
+ 
+ CPsiSection::CPsiSection()
+ 	: CMediaData()
+ {
+diff -U 10 -rwN TSTask_patched1/BonTsEngine/TsStream.h TSTask/BonTsEngine/TsStream.h
+--- TSTask_patched1/BonTsEngine/TsStream.h	2018-08-10 11:50:17.246638800 +0900
++++ TSTask/BonTsEngine/TsStream.h	2018-08-10 11:51:34.727145300 +0900
+@@ -6,28 +6,27 @@
+ 
+ 
+ #include "Common.h"
+ #include "MediaData.h"
+ 
+ 
+ /////////////////////////////////////////////////////////////////////////////
+ // TSパケット抽象化クラス
+ /////////////////////////////////////////////////////////////////////////////
+ 
+-#define TSPACKET_NEED_ALIGNED_PAYLOAD
+-
+ #define TS_PACKETSIZE	(188U)	// TSパケットサイズ
+ 
+ class CTsPacket : public CMediaData
+ {
+ public:
+ 	CTsPacket();
++	CTsPacket(const BYTE *pHexData);
+ 	CTsPacket(const CTsPacket &Operand);
+ 	CTsPacket & operator = (const CTsPacket &Operand);
+ 	~CTsPacket();
+ 
+ 	enum	// ParsePacket() エラーコード
+ 	{
+ 		EC_VALID		= 0x00000000UL,		// 正常パケット
+ 		EC_FORMAT		= 0x00000001UL,		// フォーマットエラー
+ 		EC_TRANSPORT	= 0x00000002UL,		// トランスポートエラー(ビットエラー)
+ 		EC_CONTINUITY	= 0x00000003UL		// 連続性カウンタエラー(ドロップ)
+@@ -66,26 +65,24 @@
+ 		bool bAdaptationFieldExtFlag;		// Adaptation Field Extension Flag
+ 		const BYTE *pOptionData;			// オプションフィールドデータ
+ 		BYTE byOptionSize;					// オプションフィールド長
+ 	} m_AdaptationField;
+ 
+ 	enum { BUFFER_SIZE=TS_PACKETSIZE+sizeof(TAG_TSPACKETHEADER)+sizeof(TAG_ADAPTFIELDHEADER) };
+ 	void StoreToBuffer(void *pBuffer);
+ 	void RestoreFromBuffer(const void *pBuffer);
+ 
+ private:
+-#ifdef TSPACKET_NEED_ALIGNED_PAYLOAD
+ // CMediaData
+ 	void *Allocate(size_t Size) override;
+ 	void Free(void *pBuffer) override;
+ 	void *ReAllocate(void *pBuffer, size_t Size) override;
+-#endif
+ };
+ 
+ 
+ /////////////////////////////////////////////////////////////////////////////
+ // PSIセクション抽象化クラス
+ /////////////////////////////////////////////////////////////////////////////
+ 
+ class CPsiSection : public CMediaData
+ {
+ public:
+diff -U 10 -rwN TSTask_patched1/TSTask/TSTaskCore.cpp TSTask/TSTask/TSTaskCore.cpp
+--- TSTask_patched1/TSTask/TSTaskCore.cpp	2018-08-10 11:50:17.293793200 +0900
++++ TSTask/TSTask/TSTaskCore.cpp	2018-08-10 11:54:33.374943400 +0900
+@@ -656,40 +656,59 @@
+ 	}
+ 
+ 	bool CTSTaskCore::OpenCasCard(LPCWSTR pszReaderName)
+ 	{
+ 		if (!m_fInitialized)
+ 			return false;
+ 
+ 		if (!CloseCasCard())
+ 			return false;
+ 
+-		OutLog(LOG_INFO, L"B-CASカードを開きます。(%s)", IsStringEmpty(pszReaderName) ? L"指定なし" : pszReaderName);
++		OutLog(LOG_INFO,L"B-CASカードを開きます。(%s)",
++			   IsStringEmpty(pszReaderName)?L"指定なし":pszReaderName);
+ 
+ 		CTryBlockLock Lock(m_Lock);
+ 		if (!Lock.TryLock(m_LockTimeout)) {
+-			OutTimeoutErrorLog();
++			OutLog(LOG_ERROR,L"タイムアウトしました。");
+ 			return false;
+ 		}
+ 
+ 		if (!ListUtility::Enum(m_EventHandlerList.begin(), m_EventHandlerList.end(),
+ 			[pszReaderName](TSTask::CEventHandler *pHandler) {
+ 			return pHandler->OnCasCardOpen(pszReaderName);
+ 		})) {
+ 			OutLog(LOG_INFO, L"B-CASカードオープンがキャンセルされました。");
+ 			return false;
+ 		}
+ 
+-		if (IsStringEmpty(pszReaderName))
++		::CCardReader::ReaderType Type;
++
++		if (IsStringEmpty(pszReaderName)) {
++			Type=::CCardReader::READER_SCARD;
+ 			pszReaderName = nullptr;
++		} else {
++			if (::lstrcmpiW(pszReaderName,L"BonCasClient")==0) {
++				Type=::CCardReader::READER_BONCASCLIENT;
++			} else {
++				LPCWSTR pszExtension=::StrRChrIW(pszReaderName,nullptr,L'.');
++				if (pszExtension!=nullptr
++						&& (::lstrcmpiW(pszExtension,L".scard")==0
++							|| ::lstrcmpiW(pszExtension,L".dll")==0)) {
++					Type=::CCardReader::READER_SCARD_DYNAMIC;
++				} else {
++					Type=::CCardReader::READER_SCARD;
++				}
++			}
++		}
+ 
+-		if (!m_DtvEngine.OpenCasCard(CCardReader::READER_SCARD, pszReaderName)) {
++		if (!m_DtvEngine.OpenCasCard(Type,
++				(Type==::CCardReader::READER_SCARD || Type==::CCardReader::READER_SCARD_DYNAMIC)?pszReaderName:nullptr)) {
+ 			OutBonTsEngineErrorLog(m_DtvEngine);
+ 
+ 			for (auto e:m_EventHandlerList)
+ 				e->OnCasCardOpenFailed(pszReaderName);
+ 
+ 			return false;
+ 		}
+ 
+ 		LPCWSTR pszName = m_DtvEngine.m_TsDescrambler.GetCardReaderName();
+ 		if (pszName != nullptr) {

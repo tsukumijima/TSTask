@@ -583,6 +583,21 @@ namespace TSTaskCentre
 		return true;
 	}
 
+	bool CTSTaskManager::OpenCasCard(TSTask::TaskID ID,LPCWSTR pszReaderName)
+	{
+		TSTask::CMessage Message;
+
+		if (!TSTask::IsStringEmpty(pszReaderName))
+			Message.SetProperty(TSTask::MESSAGE_PROPERTY_Name,pszReaderName);
+
+		return SendBasicMessage(ID,Message);
+	}
+
+	bool CTSTaskManager::CloseCasCard(TSTask::TaskID ID)
+	{
+		return SendBasicMessage(ID,TSTask::MESSAGE_CloseCasCard);
+	}
+
 	bool CTSTaskManager::StartRecording(TSTask::TaskID ID,const TSTask::RecordingSettings *pSettings)
 	{
 		TSTask::CMessage Message(TSTask::MESSAGE_StartRecording);

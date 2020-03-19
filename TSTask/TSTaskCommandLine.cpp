@@ -11,6 +11,9 @@ namespace TSTask
 		: m_TaskID(INVALID_TASK_ID)
 		, m_ProcessPriority(-100)
 
+		, m_Descramble(-1)
+		, m_EMMProcess(BOOL_DEFAULT)
+
 		, m_ClientShowCommand(-1)
 
 		, m_TuningSpace(-1)
@@ -25,6 +28,7 @@ namespace TSTask
 		, m_RecordingDelay(0)
 		, m_RecordingDuration(0)
 		, m_RecordingService(-1)
+		, m_RecordingDescramble(-1)
 		, m_Record1Seg(BOOL_DEFAULT)
 		, m_RecordingPreAllocateSize(-1)
 		, m_ExitOnRecordingStop(BOOL_DEFAULT)
@@ -68,6 +72,13 @@ namespace TSTask
 		else
 			Parser.GetOption(L"show",&m_ClientShowCommand);
 
+		if (Parser.HasOption(L"nd"))
+			m_Descramble=DESCRAMBLE_NO;
+		else
+			Parser.GetOption(L"descramble",&m_Descramble);
+		Parser.GetOption(L"cardreader",&m_CardReaderName);
+		Parser.GetOption(L"emm", &m_EMMProcess);
+
 		Parser.GetOption(L"chspace",&m_TuningSpace);
 		Parser.GetOption(L"ch",&m_Channel);
 		Parser.GetOption(L"rch",&m_RemoteControlKeyID);
@@ -85,6 +96,7 @@ namespace TSTask
 			m_RecordingService=SERVICE_SELECT_CURRENT;
 		else
 			Parser.GetOption(L"recservice",&m_RecordingService);
+		Parser.GetOption(L"recdescramble",&m_RecordingDescramble);
 		Parser.GetOption(L"rec1seg",&m_Record1Seg);
 		Parser.GetOption(L"recallocsize",&m_RecordingPreAllocateSize);
 		Parser.GetOption(L"recexit",&m_ExitOnRecordingStop);

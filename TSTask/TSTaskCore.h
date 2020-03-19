@@ -40,6 +40,13 @@ namespace TSTask
 		bool GetServiceInfo(ServiceInfo *pInfo);
 		bool GetServiceList(ServiceList *pList);
 
+		bool OpenCasCard(LPCWSTR pszReaderName);
+		bool CloseCasCard();
+		bool IsCasCardOpened() const;
+		bool SetDescramble(DescrambleType Descramble);
+		bool SetMulti2Instruction(Multi2InstructionType Instruction);
+		bool EnableEMMProcess(bool fEMMProcess);
+
 		bool StartRecording(const RecordingSettings &Settings);
 		bool StopRecording();
 		bool SetNextRecordingDirectory();
@@ -93,6 +100,10 @@ namespace TSTask
 		void OnEventUpdated(::CTsAnalyzer *pTsAnalyzer) override;
 		void OnTotUpdated(::CTsAnalyzer *pTsAnalyzer) override;
 		void OnFileWriteError(::CTsRecorder *pTsRecorder,DWORD ErrorCode) override;
+		void OnEmmProcessed(const BYTE *pEmmData) override;
+		void OnEcmError(LPCTSTR pszText) override;
+		void OnEcmRefused() override;
+		void OnCardReaderHung() override;
 
 	// CTracer
 		void OnTrace(::CTracer::TraceType Type,LPCTSTR pszOutput) override;

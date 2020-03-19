@@ -31,6 +31,8 @@ namespace TSTaskCentre
 		bool OnTunerClosed(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
 		bool OnChannelChanged(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
 		bool OnServiceChanged(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
+		bool OnCasCardOpened(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
+		bool OnCasCardClosed(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
 		bool OnRecordingStarted(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
 		bool OnRecordingStopped(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
 		bool OnRecordingFileChanged(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse);
@@ -140,6 +142,8 @@ namespace TSTaskCentre
 			{TSTask::MESSAGE_EVENT_TunerClosed,				&CTSTaskCentreApp::OnTunerClosed},
 			{TSTask::MESSAGE_EVENT_ChannelChanged,			&CTSTaskCentreApp::OnChannelChanged},
 			{TSTask::MESSAGE_EVENT_ServiceChanged,			&CTSTaskCentreApp::OnServiceChanged},
+			{TSTask::MESSAGE_EVENT_CasCardOpened,			&CTSTaskCentreApp::OnCasCardOpened},
+			{TSTask::MESSAGE_EVENT_CasCardClosed,			&CTSTaskCentreApp::OnCasCardClosed},
 			{TSTask::MESSAGE_EVENT_RecordingStarted,		&CTSTaskCentreApp::OnRecordingStarted},
 			{TSTask::MESSAGE_EVENT_RecordingStopped,		&CTSTaskCentreApp::OnRecordingStopped},
 			{TSTask::MESSAGE_EVENT_RecordingFileChanged,	&CTSTaskCentreApp::OnRecordingFileChanged},
@@ -428,6 +432,46 @@ namespace TSTaskCentre
 		TSTask::OutLog(TSTask::LOG_VERBOSE,L"タスク(%u)のサービス変更通知を受信しました。",TaskID);
 
 		m_MainBoard.NotifyServiceChanged(TaskID);
+
+		pResponse->SetProperty(TSTask::MESSAGE_PROPERTY_Result,TSTask::MESSAGE_RESULT_OK);
+
+		return true;
+	}
+
+	bool CTSTaskCentreApp::OnCasCardOpened(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse)
+	{
+		TSTask::CMessageProperty::IntType Value;
+
+		if (!pMessage->GetProperty(TSTask::MESSAGE_PROPERTY_TaskID,&Value)) {
+			pResponse->SetProperty(TSTask::MESSAGE_PROPERTY_Result,TSTask::MESSAGE_RESULT_NoProperty);
+			return true;
+		}
+
+		TSTask::TaskID TaskID=(TSTask::TaskID)Value;
+
+		TSTask::OutLog(TSTask::LOG_VERBOSE,L"タスク(%u)のB-CASカードオープン通知を受信しました。",TaskID);
+
+		m_MainBoard.NotifyCasCardOpened(TaskID);
+
+		pResponse->SetProperty(TSTask::MESSAGE_PROPERTY_Result,TSTask::MESSAGE_RESULT_OK);
+
+		return true;
+	}
+
+	bool CTSTaskCentreApp::OnCasCardClosed(TSTask::CMessageServer *pServer,const TSTask::CMessage *pMessage,TSTask::CMessage *pResponse)
+	{
+		TSTask::CMessageProperty::IntType Value;
+
+		if (!pMessage->GetProperty(TSTask::MESSAGE_PROPERTY_TaskID,&Value)) {
+			pResponse->SetProperty(TSTask::MESSAGE_PROPERTY_Result,TSTask::MESSAGE_RESULT_NoProperty);
+			return true;
+		}
+
+		TSTask::TaskID TaskID=(TSTask::TaskID)Value;
+
+		TSTask::OutLog(TSTask::LOG_VERBOSE,L"タスク(%u)のB-CASカードクローズ通知を受信しました。",TaskID);
+
+		m_MainBoard.NotifyCasCardClosed(TaskID);
 
 		pResponse->SetProperty(TSTask::MESSAGE_PROPERTY_Result,TSTask::MESSAGE_RESULT_OK);
 

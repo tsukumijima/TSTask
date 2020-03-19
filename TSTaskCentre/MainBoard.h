@@ -143,6 +143,8 @@ namespace TSTaskCentre
 		bool NotifyTunerClosed(TSTask::TaskID ID);
 		bool NotifyChannelChanged(TSTask::TaskID ID);
 		bool NotifyServiceChanged(TSTask::TaskID ID);
+		bool NotifyCasCardOpened(TSTask::TaskID ID);
+		bool NotifyCasCardClosed(TSTask::TaskID ID);
 		bool NotifyRecordingStarted(TSTask::TaskID ID);
 		bool NotifyRecordingStopped(TSTask::TaskID ID);
 		bool NotifyRecordingFileChanged(TSTask::TaskID ID);

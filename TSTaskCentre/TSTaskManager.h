@@ -77,6 +77,8 @@ namespace TSTaskCentre
 		bool SetService(TSTask::TaskID ID,WORD ServiceID);
 		bool GetService(TSTask::TaskID ID,TSTask::ServiceInfo *pInfo);
 		bool GetServiceList(TSTask::TaskID ID,TSTask::ServiceList *pList);
+		bool OpenCasCard(TSTask::TaskID ID,LPCWSTR pszReaderName);
+		bool CloseCasCard(TSTask::TaskID ID);
 		bool StartRecording(TSTask::TaskID ID,const TSTask::RecordingSettings *pSettings=nullptr);
 		bool StopRecording(TSTask::TaskID ID);
 		bool ChangeRecordingFile(TSTask::TaskID ID,LPCWSTR pszFileName);

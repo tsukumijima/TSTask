@@ -35,6 +35,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="CardReader.cpp" />
+    <ClCompile Include="CasCard.cpp" />
     <ClCompile Include="EventInfo.cpp" />
     <ClCompile Include="Exception.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
@@ -52,6 +54,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Multi2Decoder.cpp" />
+    <ClCompile Include="Multi2DecoderSIMD.cpp" />
     <ClCompile Include="PATGenerator.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -68,6 +72,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="TsDescrambler.cpp" />
     <ClCompile Include="TsDescriptor.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Use</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Use</PrecompiledHeader>
@@ -117,6 +122,8 @@
     <ClInclude Include="BonBaseClass.h" />
     <ClInclude Include="BonSrcDecoder.h" />
     <ClInclude Include="BonTsEngineConfig.h" />
+    <ClInclude Include="CardReader.h" />
+    <ClInclude Include="CasCard.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="EventInfo.h" />
     <ClInclude Include="Exception.h" />
@@ -125,10 +132,13 @@
     <ClInclude Include="MediaData.h" />
     <ClInclude Include="MediaDecoder.h" />
     <ClInclude Include="MediaTee.h" />
+    <ClInclude Include="Multi2Decoder.h" />
+    <ClInclude Include="Multi2DecoderSIMD.h" />
     <ClInclude Include="PATGenerator.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="StdUtil.h" />
     <ClInclude Include="TsAnalyzer.h" />
+    <ClInclude Include="TsDescrambler.h" />
     <ClInclude Include="TsDescriptor.h" />
     <ClInclude Include="TsEncode.h" />
     <ClInclude Include="TsGrabber.h" />
