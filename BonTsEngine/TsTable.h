@@ -291,6 +291,9 @@ public:
 	const WORD GetEsPID(const WORD wIndex) const;
 	const CDescBlock * GetItemDesc(const WORD wIndex) const;
 
+// for SPSD ECM
+	WORD GetSdEcmPID() const { return(m_wSdEcmPID); };
+
 protected:
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection) override;
 
@@ -305,6 +308,8 @@ protected:
 
 	WORD m_wPcrPID;						// PCR_PID
 	CDescBlock m_TableDescBlock;		// Conditional Access Method Descriptor ‘¼
+
+	WORD m_wSdEcmPID; 	// for SPSD ECM
 
 #ifdef _DEBUG
 	bool m_bDebugTrace;

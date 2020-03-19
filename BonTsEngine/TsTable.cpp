@@ -671,6 +671,7 @@ void CPmtTable::Reset()
 	CPsiSingleTable::Reset();
 
 	m_wPcrPID = 0xFFFFU;
+	m_wSdEcmPID = 0xFFFFU; // for SPSD ECM
 	m_TableDescBlock.Reset();
 	m_EsInfoArray.clear();
 }
@@ -697,7 +698,7 @@ const WORD CPmtTable::GetEcmPID() const
 	// ECMのPIDを返す
 	const CCaMethodDesc *pCaMethodDesc = m_TableDescBlock.GetDesc<CCaMethodDesc>();
 
-	return (pCaMethodDesc)? pCaMethodDesc->GetCaPID() : 0xFFFFU;
+	return (pCaMethodDesc)? pCaMethodDesc->GetCaPID() : m_wSdEcmPID; // 0xFFFFU; // for SPSD ECM
 }
 
 const WORD CPmtTable::GetEcmPID(const WORD CASystemID) const
@@ -714,7 +715,7 @@ const WORD CPmtTable::GetEcmPID(const WORD CASystemID) const
 		}
 	}
 
-	return 0xFFFF;
+	return (m_wSdEcmPID); // 0xFFFF; // for SPSD ECM
 }
 
 const WORD CPmtTable::GetEsInfoNum() const
@@ -753,6 +754,7 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 	// 状態をクリアする
 	m_wPcrPID = 0xFFFFU;
+	m_wSdEcmPID = 0xFFFFU; // for SPSD ECM
 	m_EsInfoArray.clear();
 
 	// テーブルを解析する
@@ -791,6 +793,17 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 		// テーブルに追加する
 		m_EsInfoArray.push_back(PmtItem);
+
+		// for SPSD ECM
+		if ( (m_wSdEcmPID > 0x1FFFU) && (pCurSection->GetTableIdExtension() < 32768) ) {
+			const CBaseDesc *pDesc = PmtItem.DescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG);
+			if ( pDesc != NULL ) {
+				const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(pDesc);
+				if ( (pCaDesc != NULL) && (pCaDesc->GetCaMethodID() == 0x01U) ) {
+					m_wSdEcmPID = pCaDesc->GetCaPID();
+				}
+			}
+		}
 	}
 
 	return true;
