@@ -9,3 +9,9 @@ CAS 処理は実装されていないため、暗号化された一般のテレ�
 ライセンス
 ----------
 GPL v2
+
+このフォークについて
+----------
+最新版の TSTask に tstask.patch ( [http://www.axfc.net/u/3516629](http://www.axfc.net/u/3516629) ) と tstask2-rev2.patch ( [http://www.axfc.net/u/3927997](http://www.axfc.net/u/3927997) ) を適用したものです。  
+SPHD ブランチはこれに加えて tstask_sphd.patch・tstask_sphd2.patch ( [http://www.axfc.net/u/3927997](http://www.axfc.net/u/3927997) ) を当て、TSTask-SPHD（スカパープレミアム対応の TSTask ）としています。  
+ビルドしたものは https://github.com/tsukumijima/DTV-Built に置いてあります。
