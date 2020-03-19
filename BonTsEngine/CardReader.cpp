@@ -907,7 +907,7 @@ bool CBonCasClientCardReader::Load(LPCTSTR pszFileName)
 	if (!GetLibraryFunc(m_hLib, pEstablishContext, "CasLinkEstablishContext")
 	 || !GetLibraryFunc(m_hLib, pListReaders, FUNC_NAME("CasLinkListReaders"))
 	 || !GetLibraryFunc(m_hLib, m_pCasLinkReleaseContext, "CasLinkReleaseContext")
-	 || !GetLibraryFunc(m_hLib, m_pCasLinkConnect, "CasLinkConnect")
+	 || !GetLibraryFunc(m_hLib, m_pCasLinkConnect, FUNC_NAME("CasLinkConnect"))
 	 || !GetLibraryFunc(m_hLib, m_pCasLinkDisconnect, "CasLinkDisconnect")
 	 || !GetLibraryFunc(m_hLib, m_pCasLinkTransmit, "CasLinkTransmit")) {
 		::FreeLibrary(m_hLib);

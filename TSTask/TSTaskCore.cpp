@@ -663,11 +663,12 @@ namespace TSTask
 		if (!CloseCasCard())
 			return false;
 
-		OutLog(LOG_INFO, L"B-CASカードを開きます。(%s)", IsStringEmpty(pszReaderName) ? L"指定なし" : pszReaderName);
+		OutLog(LOG_INFO,L"B-CASカードを開きます。(%s)",
+			   IsStringEmpty(pszReaderName)?L"指定なし":pszReaderName);
 
 		CTryBlockLock Lock(m_Lock);
 		if (!Lock.TryLock(m_LockTimeout)) {
-			OutTimeoutErrorLog();
+			OutLog(LOG_ERROR,L"タイムアウトしました。");
 			return false;
 		}
 
@@ -679,10 +680,28 @@ namespace TSTask
 			return false;
 		}
 
-		if (IsStringEmpty(pszReaderName))
-			pszReaderName = nullptr;
+		::CCardReader::ReaderType Type;
 
-		if (!m_DtvEngine.OpenCasCard(CCardReader::READER_SCARD, pszReaderName)) {
+		if (IsStringEmpty(pszReaderName)) {
+			Type=::CCardReader::READER_SCARD;
+			pszReaderName = nullptr;
+		} else {
+			if (::lstrcmpiW(pszReaderName,L"BonCasClient")==0) {
+				Type=::CCardReader::READER_BONCASCLIENT;
+			} else {
+				LPCWSTR pszExtension=::StrRChrIW(pszReaderName,nullptr,L'.');
+				if (pszExtension!=nullptr
+						&& (::lstrcmpiW(pszExtension,L".scard")==0
+							|| ::lstrcmpiW(pszExtension,L".dll")==0)) {
+					Type=::CCardReader::READER_SCARD_DYNAMIC;
+				} else {
+					Type=::CCardReader::READER_SCARD;
+				}
+			}
+		}
+
+		if (!m_DtvEngine.OpenCasCard(Type,
+				(Type==::CCardReader::READER_SCARD || Type==::CCardReader::READER_SCARD_DYNAMIC)?pszReaderName:nullptr)) {
 			OutBonTsEngineErrorLog(m_DtvEngine);
 
 			for (auto e:m_EventHandlerList)

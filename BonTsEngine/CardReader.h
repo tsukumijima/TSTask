@@ -1,6 +1,8 @@
 #ifndef CARD_READER_H
 #define CARD_READER_H
 
+#define CARDREADER_SCARD_DYNAMIC_SUPPORT
+#define CARDREADER_BONCASCLIENT_SUPPORT
 
 #include <winscard.h>
 #include "BonBaseClass.h"
