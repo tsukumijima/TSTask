@@ -15,7 +15,7 @@ SPHD ブランチはこれに加えて
 
 - tstask_sphd.patch・tstask_sphd2.patch ( [http://www.axfc.net/u/3927997](http://www.axfc.net/u/3927997) )
 
-も適用し、TSTask-SPHD（スカパープレミアム対応の TSTask ）としています。
+も適用し、TSTask-SPHD（スカパー！プレミアムサービス対応の TSTask ）としています。
 
 ビルドしたものは https://github.com/tsukumijima/DTV-Built に置いてあります。
 
