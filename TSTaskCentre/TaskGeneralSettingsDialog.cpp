@@ -34,6 +34,22 @@ namespace TSTaskCentre
 				if (m_Settings.BonDriver.GetLoadDirectory(&Text))
 					SetItemString(IDC_TASK_SETTINGS_BONDRIVER_FOLDER,Text);
 
+				static const LPCTSTR DescrambleList[] = {
+					TEXT("スクランブル解除しない"),
+					TEXT("全てのサービスをスクランブル解除する"),
+					TEXT("指定されたサービスのみスクランブル解除する"),
+				};
+				static_assert(_countof(DescrambleList)==TSTask::DESCRAMBLE_TRAILER,
+							  "スクランブル解除の設定の数が一致しません。");
+				for (int i=0;i<_countof(DescrambleList);i++) {
+					::SendDlgItemMessage(hDlg,IDC_TASK_SETTINGS_DESCRAMBLE,CB_ADDSTRING,0,
+										 reinterpret_cast<LPARAM>(DescrambleList[i]));
+				}
+				::SendDlgItemMessage(hDlg,IDC_TASK_SETTINGS_DESCRAMBLE,CB_SETCURSEL,
+									 (WPARAM)m_Settings.General.GetDescrambleType(),0);
+
+				CheckItem(IDC_TASK_SETTINGS_EMM_PROCESS,m_Settings.General.GetEMMProcess());
+
 				CheckItem(IDC_TASK_SETTINGS_EXECUTE_CLIENT,m_Settings.General.GetClientExecuteOnStart());
 				EnableItems(IDC_TASK_SETTINGS_CLIENT_FILE_NAME_LABEL,
 							IDC_TASK_SETTINGS_CLIENT_OPTIONS,
@@ -77,6 +93,11 @@ namespace TSTaskCentre
 
 		if (GetItemString(IDC_TASK_SETTINGS_BONDRIVER_FOLDER,&Text))
 			Settings.BonDriver.SetLoadDirectory(Text);
+
+		Settings.General.SetDescrambleType(TSTask::DescrambleType(
+			::SendDlgItemMessage(m_hDlg,IDC_TASK_SETTINGS_DESCRAMBLE,CB_GETCURSEL,0,0)));
+
+		Settings.General.SetEMMProcess(IsItemChecked(IDC_TASK_SETTINGS_EMM_PROCESS));
 
 		Settings.General.SetClientExecuteOnStart(
 			IsItemChecked(IDC_TASK_SETTINGS_EXECUTE_CLIENT));

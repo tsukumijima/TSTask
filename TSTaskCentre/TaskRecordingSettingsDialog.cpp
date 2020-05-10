@@ -80,6 +80,20 @@ namespace TSTaskCentre
 				CheckItem(IDC_TASK_SETTINGS_RECORDING_SAVE_DATA_CARROUSEL,
 						  (Streams&TSTask::STREAM_DATA_CARROUSEL)!=0);
 
+				static const LPCTSTR DescrambleList[] = {
+					TEXT("スクランブル解除しない"),
+					TEXT("全てのサービスをスクランブル解除する"),
+					TEXT("指定されたサービスのみスクランブル解除する"),
+				};
+				static_assert(_countof(DescrambleList)==TSTask::DESCRAMBLE_TRAILER,
+							  "スクランブル解除の設定の数が一致しません。");
+				for (int i=0;i<_countof(DescrambleList);i++) {
+					::SendDlgItemMessage(hDlg,IDC_TASK_SETTINGS_RECORDING_DESCRAMBLE,CB_ADDSTRING,0,
+										 reinterpret_cast<LPARAM>(DescrambleList[i]));
+				}
+				::SendDlgItemMessage(hDlg,IDC_TASK_SETTINGS_RECORDING_DESCRAMBLE,CB_SETCURSEL,
+									 (WPARAM)m_Settings.Recording.GetDescrambleType(),0);
+
 				CheckItem(IDC_TASK_SETTINGS_RECORDING_PRE_ALLOCATE,
 						  m_Settings.Recording.GetPreAllocate());
 				SetItemUInt(IDC_TASK_SETTINGS_RECORDING_PRE_ALLOCATE_SIZE,
@@ -413,6 +427,9 @@ namespace TSTaskCentre
 			IsItemChecked(IDC_TASK_SETTINGS_RECORDING_SAVE_CAPTION));
 		Settings.Recording.SetStreamFlag(TSTask::STREAM_DATA_CARROUSEL,
 			IsItemChecked(IDC_TASK_SETTINGS_RECORDING_SAVE_DATA_CARROUSEL));
+
+		Settings.Recording.SetDescrambleType(TSTask::DescrambleType(
+			::SendDlgItemMessage(m_hDlg,IDC_TASK_SETTINGS_RECORDING_DESCRAMBLE,CB_GETCURSEL,0,0)));
 
 		Settings.Recording.SetPreAllocate(
 			IsItemChecked(IDC_TASK_SETTINGS_RECORDING_PRE_ALLOCATE));
