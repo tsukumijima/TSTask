@@ -565,13 +565,16 @@ void CTsNetworkSender::SendMain()
 							}
 
 							Result = ::WSAWaitForMultipleEvents(1, &i->Event, FALSE, 1000, FALSE);
-							if (Result != WSA_WAIT_EVENT_0)
+							if (Result == WSA_WAIT_FAILED) {
+								TRACE(TEXT("send() error(2) %d\n"), ::WSAGetLastError());
 								break;
-							WSANETWORKEVENTS Events;
-							Result = ::WSAEnumNetworkEvents(i->sock, i->Event, &Events);
-							if (Result == SOCKET_ERROR
+							} else if (Result == WSA_WAIT_EVENT_0) {
+								WSANETWORKEVENTS Events;
+								Result = ::WSAEnumNetworkEvents(i->sock, i->Event, &Events);
+								if (Result == SOCKET_ERROR
 									|| (Events.lNetworkEvents & FD_WRITE) == 0)
-								break;
+									break;
+							}
 						}
 						//Count++;
 					}
