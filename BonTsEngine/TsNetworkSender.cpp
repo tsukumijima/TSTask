@@ -110,20 +110,11 @@ bool CTsNetworkSender::Open(const AddressInfo *pList, DWORD Length)
 				throw __LINE__;
 			}
 
-			// 非ブロッキングに設定
-			u_long arg = 1;
-			::ioctlsocket(Info.sock, FIONBIO, &arg);
-
 			Info.bConnected = false;
 			Info.addr = NULL;
 			Info.sock = INVALID_SOCKET;
 			Info.Event = WSA_INVALID_EVENT;
 			Info.SentBytes = 0;
-
-			if (Type == SOCK_DGRAM) {
-				const DWORD LocalHost = ::inet_addr("127.0.0.1");
-				::setsockopt(Info.sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&LocalHost, sizeof(DWORD));
-			}
 
 			m_SockList.push_back(Info);
 		}
