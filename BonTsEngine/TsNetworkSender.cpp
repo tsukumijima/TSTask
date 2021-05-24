@@ -548,11 +548,18 @@ void CTsNetworkSender::SendMain()
 
 						const int MaxRetries = m_TcpMaxSendRetries;
 
-						for (int j = 0; j < 1 + MaxRetries; j++) {
+						for (int j = 0; j < 1 + MaxRetries && Size > 0; ) {
 							int Result = ::send(i->sock, pData, Size, 0);
 							if (Result != SOCKET_ERROR) {
+								if (Result <= 0) {
+									TRACE(TEXT("send() unexpected return\n"));
+									break;
+								}
+								// ‚·‚×‚Ä‚ð‘—M‚µ‚½‚Æ‚ÍŒÀ‚ç‚È‚¢
+								pData += Result;
+								Size -= Result;
 								i->SentBytes += Result;
-								break;
+								continue;
 							}
 							if (j == MaxRetries) {
 								TRACE(TEXT("send() error %d\n"), ::WSAGetLastError());
@@ -563,6 +570,8 @@ void CTsNetworkSender::SendMain()
 								TRACE(TEXT("send() error %d\n"), Error);
 								break;
 							}
+							if (m_EndSendingEvent.IsSignaled())
+								break;
 
 							Result = ::WSAWaitForMultipleEvents(1, &i->Event, FALSE, 1000, FALSE);
 							if (Result == WSA_WAIT_FAILED) {
@@ -575,6 +584,7 @@ void CTsNetworkSender::SendMain()
 									|| (Events.lNetworkEvents & FD_WRITE) == 0)
 									break;
 							}
+							j++;
 						}
 						//Count++;
 					}
