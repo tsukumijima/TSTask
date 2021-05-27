@@ -53,7 +53,7 @@ protected:
 	bool AddStream(const BYTE *pData, DWORD DataSize);
 	bool GetStream(CMediaData *pData, DWORD *pWait);
 	void ClearQueue();
-	bool ConnectTCP();
+	void ConnectTCP();
 	void SendMain();
 	void TraceAddress(CTracer::TraceType Type, LPCTSTR pszFormat, const ADDRINFOT *addr);
 	void ConnectedTrace(const ADDRINFOT *addr);
@@ -87,6 +87,9 @@ protected:
 		SocketType Type;
 		ADDRINFOT *AddrList;
 		bool bConnected;
+		bool bConnectRetriesTraced;
+		int ConnectRetries;
+		DWORD dwConnectRetryTick;
 		const ADDRINFOT *addr;
 		SOCKET sock;
 		WSAEVENT Event;

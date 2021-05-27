@@ -110,20 +110,15 @@ bool CTsNetworkSender::Open(const AddressInfo *pList, DWORD Length)
 				throw __LINE__;
 			}
 
-			// 非ブロッキングに設定
-			u_long arg = 1;
-			::ioctlsocket(Info.sock, FIONBIO, &arg);
-
 			Info.bConnected = false;
+			Info.bConnectRetriesTraced = false;
+			Info.ConnectRetries = 0;
+			// 初回接続のタイミングを設定
+			Info.dwConnectRetryTick = ::GetTickCount() - (m_ConnectRetryInterval < 500 ? 0 : m_ConnectRetryInterval - 500);
 			Info.addr = NULL;
 			Info.sock = INVALID_SOCKET;
 			Info.Event = WSA_INVALID_EVENT;
 			Info.SentBytes = 0;
-
-			if (Type == SOCK_DGRAM) {
-				const DWORD LocalHost = ::inet_addr("127.0.0.1");
-				::setsockopt(Info.sock, IPPROTO_IP, IP_MULTICAST_IF, (const char *)&LocalHost, sizeof(DWORD));
-			}
 
 			m_SockList.push_back(Info);
 		}
@@ -168,7 +163,8 @@ bool CTsNetworkSender::Close()
 			::WSACloseEvent(i->Event);
 		}
 		if (i->sock != INVALID_SOCKET) {
-			::shutdown(i->sock, SD_BOTH);
+			if (i->bConnected)
+				::shutdown(i->sock, SD_BOTH);
 			::closesocket(i->sock);
 		}
 		::FreeAddrInfo(i->AddrList);
@@ -372,80 +368,99 @@ void CTsNetworkSender::ClearQueue()
 }
 
 
-bool CTsNetworkSender::ConnectTCP()
+void CTsNetworkSender::ConnectTCP()
 {
 	for (auto i = m_SockList.begin(); i != m_SockList.end(); ++i) {
-		if (m_EndSendingEvent.Wait(500) != WAIT_TIMEOUT)
-			return false;
+		DWORD dwNowTick = ::GetTickCount();
 
-		if (i->Type == SOCKET_TCP && !i->bConnected) {
-			for (const ADDRINFOT *addr = i->AddrList; addr != NULL; addr = addr->ai_next) {
+		if (i->ConnectRetries > m_MaxConnectRetries) {
+			if (!i->bConnectRetriesTraced) {
+				i->bConnectRetriesTraced = true;
+				if (i->Type == SOCKET_TCP)
+					TraceAddress(CTracer::TYPE_ERROR, TEXT("%s:%d に接続できません。"), i->AddrList);
+			}
+		} else if (i->Type == SOCKET_TCP && !i->bConnected && i->sock != INVALID_SOCKET) {
+			int Result = ::WSAWaitForMultipleEvents(1, &i->Event, FALSE, 0, FALSE);
+			if (Result == WSA_WAIT_EVENT_0) {
+				WSANETWORKEVENTS Events;
+				Result = ::WSAEnumNetworkEvents(i->sock, i->Event, &Events);
+				if (Result != SOCKET_ERROR) {
+					if (Events.lNetworkEvents == 0)
+						continue;
+					if ((Events.lNetworkEvents & FD_CONNECT) != 0 &&
+					    Events.iErrorCode[FD_CONNECT_BIT] == 0) {
+						// 非同期接続に成功
+						i->bConnected = true;
+						i->ConnectRetries = 0;
+						ConnectedTrace(i->addr);
+						continue;
+					}
+				} else {
+					TRACE(TEXT("WSAEnumNetworkEvents() error %d\n"), Result);
+				}
+			} else if (Result == WSA_WAIT_TIMEOUT) {
+				continue;
+			} else {
+				TRACE(TEXT("WSAWaitForMultipleEvents() error %d\n"), Result);
+			}
+			// 非同期接続に失敗
+			::WSAEventSelect(i->sock, NULL, 0);
+			::WSACloseEvent(i->Event);
+			::closesocket(i->sock);
+			i->sock = INVALID_SOCKET;
+			i->Event = WSA_INVALID_EVENT;
+			i->dwConnectRetryTick = dwNowTick;
+
+			// 次の接続先をセットしておく
+			i->addr = i->addr->ai_next;
+			if (!i->addr)
+				++i->ConnectRetries;
+
+		} else if (i->Type == SOCKET_TCP && !i->bConnected &&
+		           dwNowTick - i->dwConnectRetryTick >= m_ConnectRetryInterval) {
+			i->dwConnectRetryTick = dwNowTick;
+			if (!i->addr)
+				i->addr = i->AddrList;
+
+			const ADDRINFOT *addr = i->addr;
+			if (addr) {
+				WSAEVENT Event = WSA_INVALID_EVENT;
 				SOCKET sock = ::socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-				if (sock == INVALID_SOCKET)
-					continue;
-
-				WSAEVENT Event = ::WSACreateEvent();
-				if (Event == WSA_INVALID_EVENT)
-					continue;
-				if (::WSAEventSelect(sock, Event, FD_CONNECT | FD_WRITE) == SOCKET_ERROR) {
-					::WSACloseEvent(Event);
+				if (sock != INVALID_SOCKET) {
+					Event = ::WSACreateEvent();
+					if (Event != WSA_INVALID_EVENT &&
+					    ::WSAEventSelect(sock, Event, FD_CONNECT | FD_WRITE) == SOCKET_ERROR) {
+						::WSACloseEvent(Event);
+						Event = WSA_INVALID_EVENT;
+					}
+					if (Event == WSA_INVALID_EVENT) {
+						::closesocket(sock);
+						sock = INVALID_SOCKET;
+					}
+				}
+				if (sock == INVALID_SOCKET) {
+					// 次の接続先をセットしておく
+					i->addr = addr->ai_next;
+					if (!i->addr)
+						++i->ConnectRetries;
 					continue;
 				}
 
 				if (::connect(sock, addr->ai_addr, (int)addr->ai_addrlen) != SOCKET_ERROR) {
 					i->bConnected = true;
-					i->addr = addr;
+					i->ConnectRetries = 0;
 					i->sock = sock;
 					i->Event = Event;
 					ConnectedTrace(addr);
-					break;
+					continue;
 				}
 
 				int Error = ::WSAGetLastError();
 				if (Error == WSAEWOULDBLOCK) {
-					for (;;) {
-						if (m_EndSendingEvent.Wait(500) != WAIT_TIMEOUT) {
-							::WSAEventSelect(sock, NULL, 0);
-							::WSACloseEvent(Event);
-							::closesocket(sock);
-							return false;
-						}
-
-						int Result = ::WSAWaitForMultipleEvents(1, &Event, FALSE, 0, FALSE);
-						if (Result == WSA_WAIT_EVENT_0) {
-							WSANETWORKEVENTS Events;
-
-							Result = ::WSAEnumNetworkEvents(sock, Event, &Events);
-							if (Result != SOCKET_ERROR) {
-								if (Events.lNetworkEvents == 0)
-									continue;
-								if ((Events.lNetworkEvents & FD_CONNECT) != 0) {
-									if (Events.iErrorCode[FD_CONNECT_BIT] == 0) {
-										i->bConnected = true;
-										i->addr = addr;
-										i->sock = sock;
-										i->Event = Event;
-										ConnectedTrace(addr);
-									}
-								}
-#ifdef _DEBUG
-								else {
-									TRACE(TEXT("WSAEnumNetworkEvents() Unexpected event %x\n"), Events.lNetworkEvents);
-								}
-#endif
-								break;
-							} else {
-								TRACE(TEXT("WSAEnumNetworkEvents() error %d\n"), Result);
-								break;
-							}
-						} else if (Result != WSA_WAIT_TIMEOUT) {
-							TRACE(TEXT("WSAWaitForMultipleEvents() error %d\n"), Result);
-							break;
-						}
-					}
-
-					if (i->bConnected)
-						break;
+					// !bConnected かつ sock != INVALID_SOCKET のとき、非同期接続を保留中
+					i->sock = sock;
+					i->Event = Event;
+					continue;
 				}
 #ifdef _DEBUG
 				else {
@@ -457,11 +472,21 @@ bool CTsNetworkSender::ConnectTCP()
 				::WSAEventSelect(sock, NULL, 0);
 				::WSACloseEvent(Event);
 				::closesocket(sock);
+
+				// 次の接続先をセットしておく
+				i->addr = addr->ai_next;
+				if (!i->addr)
+					++i->ConnectRetries;
 			}
-		} else if (i->Type == SOCKET_UDP && i->sock == INVALID_SOCKET) {
+		} else if (i->Type == SOCKET_UDP && i->sock == INVALID_SOCKET &&
+		           dwNowTick - i->dwConnectRetryTick >= m_ConnectRetryInterval) {
+			i->dwConnectRetryTick = dwNowTick;
+			++i->ConnectRetries;
+
 			for (const ADDRINFOT *addr = i->AddrList; addr != NULL; addr = addr->ai_next) {
 				SOCKET sock = ::socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
 				if (sock != INVALID_SOCKET) {
+					i->ConnectRetries = 0;
 					i->addr = addr;
 					i->sock = sock;
 					break;
@@ -469,13 +494,6 @@ bool CTsNetworkSender::ConnectTCP()
 			}
 		}
 	}
-
-	for (auto i = m_SockList.begin(); i != m_SockList.end(); ++i) {
-		if (!i->addr)
-			return false;
-	}
-
-	return true;
 }
 
 
@@ -484,31 +502,26 @@ bool CTsNetworkSender::ConnectTCP()
 */
 void CTsNetworkSender::SendMain()
 {
-	for (int i = 0; i <= m_MaxConnectRetries; i++) {
-		if (ConnectTCP())
-			break;
-		if (m_EndSendingEvent.Wait(m_ConnectRetryInterval) != WAIT_TIMEOUT)
-			return;
-	}
-
-	for (auto i = m_SockList.begin(); i != m_SockList.end(); ++i) {
-		if (i->Type == SOCKET_TCP && !i->bConnected) {
-			TraceAddress(CTracer::TYPE_ERROR, TEXT("%s:%d に接続できません。"), i->AddrList);
-		}
-	}
-
 	CMediaData SendData;
 	DWORD Count = 0;
 	DWORD Wait = m_SendWait;
-
-	m_bEnableQueueing = true;
 
 	do {
 		static const DWORD TCP_HEADER_SIZE = 2 * sizeof(DWORD);
 
 		SendData.SetSize(TCP_HEADER_SIZE);
 
-		if (GetStream(&SendData, &Wait)) {
+		ConnectTCP();
+
+		if (!m_bEnableQueueing) {
+			// 送信先があればキューイングを開始
+			for (auto i = m_SockList.begin(); i != m_SockList.end(); ++i) {
+				if ((i->Type == SOCKET_UDP && i->sock != INVALID_SOCKET) || i->bConnected) {
+					m_bEnableQueueing = true;
+					break;
+				}
+			}
+		} else if (GetStream(&SendData, &Wait)) {
 			const DWORD DataOctets = SendData.GetSize() - TCP_HEADER_SIZE;
 
 			DWORD *pHeader = (DWORD*)SendData.GetData();
@@ -548,35 +561,64 @@ void CTsNetworkSender::SendMain()
 
 						const int MaxRetries = m_TcpMaxSendRetries;
 
-						for (int j = 0; j < 1 + MaxRetries; j++) {
+						for (int j = 0; j < 1 + MaxRetries && Size > 0; ) {
 							int Result = ::send(i->sock, pData, Size, 0);
 							if (Result != SOCKET_ERROR) {
+								if (Result <= 0) {
+									TRACE(TEXT("send() unexpected return\n"));
+									i->bConnected = false;
+									break;
+								}
+								// すべてを送信したとは限らない
+								pData += Result;
+								Size -= Result;
 								i->SentBytes += Result;
-								break;
+								continue;
 							}
 							if (j == MaxRetries) {
 								TRACE(TEXT("send() error %d\n"), ::WSAGetLastError());
+								if (m_bTcpPrependHeader) {
+									// ヘッダの送信サイズ情報と矛盾するので閉じなければならない
+									i->bConnected = false;
+								}
 								break;
 							}
 							int Error = ::WSAGetLastError();
 							if (Error != WSAEWOULDBLOCK) {
 								TRACE(TEXT("send() error %d\n"), Error);
+								i->bConnected = false;
 								break;
 							}
+							if (m_EndSendingEvent.IsSignaled())
+								break;
 
 							Result = ::WSAWaitForMultipleEvents(1, &i->Event, FALSE, 1000, FALSE);
 							if (Result == WSA_WAIT_FAILED) {
 								TRACE(TEXT("send() error(2) %d\n"), ::WSAGetLastError());
+								i->bConnected = false;
 								break;
 							} else if (Result == WSA_WAIT_EVENT_0) {
 								WSANETWORKEVENTS Events;
 								Result = ::WSAEnumNetworkEvents(i->sock, i->Event, &Events);
 								if (Result == SOCKET_ERROR
-									|| (Events.lNetworkEvents & FD_WRITE) == 0)
+									|| (Events.lNetworkEvents & FD_WRITE) == 0) {
+									i->bConnected = false;
 									break;
+								}
 							}
+							j++;
 						}
 						//Count++;
+
+						if (!i->bConnected) {
+							// なんらかのエラーが発生したので閉じる
+							::WSAEventSelect(i->sock, NULL, 0);
+							::WSACloseEvent(i->Event);
+							::closesocket(i->sock);
+							i->sock = INVALID_SOCKET;
+							i->Event = WSA_INVALID_EVENT;
+							i->dwConnectRetryTick = ::GetTickCount();
+						}
 					}
 				}
 			}
